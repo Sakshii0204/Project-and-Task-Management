@@ -40,7 +40,7 @@ function TaskModalContent({
 }) {
   const isEdit = Boolean(task);
 
-  const [formData, setFormData] = useState(() => ({
+  const getInitialFormData = () => ({
     title: task?.title || '',
     description: task?.description || '',
     projectId: task?.projectId || defaultProjectId || (projects[0]?.id ?? ''),
@@ -51,10 +51,18 @@ function TaskModalContent({
     startDate: task?.startDate || '',
     dueDate: task?.dueDate || '',
     dependencies: task?.dependencies || [],
-  }));
+  });
 
+  const [formData, setFormData] = useState(getInitialFormData);
   const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const resetForm = () => {
+    setFormData(getInitialFormData());
+    setErrors({});
+    setApiError(null);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -66,6 +74,9 @@ function TaskModalContent({
     });
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+    if (apiError) {
+      setApiError(null);
     }
   };
 
@@ -82,10 +93,14 @@ function TaskModalContent({
     if (errors.dependencies) {
       setErrors((prev) => ({ ...prev, dependencies: undefined }));
     }
+    if (apiError) {
+      setApiError(null);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setApiError(null);
     const validationErrors = validateTaskForm(formData, allTasks, task?.id);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -98,7 +113,11 @@ function TaskModalContent({
         ...formData,
         progress: Number(formData.progress),
       });
+      resetForm();
       onClose();
+    } catch (err) {
+      console.error('Task save error:', err);
+      setApiError(err.message || 'Failed to save task. Please check inputs and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -150,6 +169,22 @@ function TaskModalContent({
       maxWidth="680px"
     >
       <form onSubmit={handleSubmit}>
+        {apiError && (
+          <div
+            style={{
+              padding: '10px 14px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: 'var(--radius-md)',
+              color: '#991b1b',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}
+          >
+            {apiError}
+          </div>
+        )}
+
         <Input
           label="Task Title"
           name="title"
@@ -316,7 +351,13 @@ function TaskModalContent({
             Cancel
           </Button>
           <Button type="submit" loading={submitting}>
-            {isEdit ? 'Save Changes' : 'Create Task'}
+            {submitting
+              ? isEdit
+                ? 'Saving...'
+                : 'Creating...'
+              : isEdit
+              ? 'Save Changes'
+              : 'Create Task'}
           </Button>
         </div>
       </form>
