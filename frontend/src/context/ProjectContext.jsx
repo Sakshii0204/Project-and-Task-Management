@@ -1,8 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/apiService';
-import { mockUsers } from '../data/mockUsers';
-import { mockProjects } from '../data/mockProjects';
-import { mockTasks } from '../data/mockTasks';
 import { mockActivities } from '../data/mockActivities';
 import { isTaskOverdue, calculateProjectProgress, getProjectTaskStatistics } from '../utils/taskUtils';
 
@@ -18,27 +15,31 @@ function getInitialStorage(key, fallback) {
 }
 
 export function ProjectProvider({ children }) {
-  const [projects, setProjects] = useState(() => getInitialStorage('ptms_projects', mockProjects));
-  const [tasks, setTasks] = useState(() => getInitialStorage('ptms_tasks', mockTasks));
+  const [projects, setProjects] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [activities, setActivities] = useState(() => getInitialStorage('ptms_activities', mockActivities));
-  const [users, setUsers] = useState(() => getInitialStorage('ptms_users', mockUsers));
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load real projects and users from MongoDB backend on mount
+  // Load real projects, tasks, and users from MongoDB backend on mount
   const refreshProjects = useCallback(async () => {
     try {
-      const [fetchedProjects, fetchedUsers] = await Promise.all([
+      const [fetchedProjects, fetchedTasks, fetchedUsers] = await Promise.all([
         apiService.getProjects(),
+        apiService.getTasks({ limit: 100 }),
         apiService.getUsers(),
       ]);
       if (Array.isArray(fetchedProjects)) {
         setProjects(fetchedProjects);
       }
+      if (Array.isArray(fetchedTasks)) {
+        setTasks(fetchedTasks);
+      }
       if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
         setUsers(fetchedUsers);
       }
     } catch (e) {
-      console.warn('Initial project/user load fallback:', e);
+      console.warn('Initial project/task/user load fallback:', e);
     }
   }, []);
 
@@ -148,29 +149,19 @@ export function ProjectProvider({ children }) {
     return updated;
   };
 
-  // Task CRUD (Preserved Phase 1 Mock / localStorage engine)
+  // Task CRUD with Real Database Backend (Phase 4)
   const addTask = async (taskData, creator) => {
-    const project = projects.find((p) => p.id === taskData.projectId || p.legacyId === taskData.projectId);
-    const assignee = users.find((u) => u.id === taskData.assigneeId);
-
-    const enriched = {
-      ...taskData,
-      projectName: project ? project.name : 'Unassigned Project',
-      assigneeName: assignee ? assignee.name : 'Unassigned',
-      assigneeAvatar: assignee ? assignee.avatar : '',
-    };
-
-    const created = await apiService.createTask(enriched);
+    const created = await apiService.createTask(taskData);
     setTasks((prev) => [created, ...prev]);
 
     await logActivity({
       type: 'TASK_CREATED',
-      userId: creator?.id || 'pm',
+      userId: creator?.id || 'admin',
       userName: creator?.name || 'Project Manager',
       userAvatar: creator?.avatar || '',
-      action: `created task and assigned to ${enriched.assigneeName}`,
+      action: `created task "${created.title}"`,
       target: created.title,
-      projectName: enriched.projectName,
+      projectName: created.projectName,
       projectId: created.projectId,
       taskId: created.id,
     });
@@ -180,25 +171,10 @@ export function ProjectProvider({ children }) {
 
   const updateTask = async (id, updates, modifier) => {
     const existing = tasks.find((t) => t.id === id);
-    if (!existing) return null;
-
-    let enriched = { ...updates };
-    if (updates.projectId) {
-      const proj = projects.find((p) => p.id === updates.projectId || p.legacyId === updates.projectId);
-      if (proj) enriched.projectName = proj.name;
-    }
-    if (updates.assigneeId) {
-      const assignee = users.find((u) => u.id === updates.assigneeId);
-      if (assignee) {
-        enriched.assigneeName = assignee.name;
-        enriched.assigneeAvatar = assignee.avatar;
-      }
-    }
-
-    const updated = await apiService.updateTask(id, enriched);
+    const updated = await apiService.updateTask(id, updates);
     setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
 
-    if (modifier && updates.status && updates.status !== existing.status) {
+    if (modifier && updates.status && updates.status !== existing?.status) {
       await logActivity({
         type: 'TASK_STATUS_CHANGED',
         userId: modifier.id,
@@ -212,6 +188,46 @@ export function ProjectProvider({ children }) {
       });
     }
 
+    return updated;
+  };
+
+  const updateTaskStatus = async (id, status, modifier) => {
+    const existing = tasks.find((t) => t.id === id);
+    const updated = await apiService.updateTaskStatus(id, status);
+    setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+
+    if (modifier && existing?.status !== updated.status) {
+      await logActivity({
+        type: 'TASK_STATUS_CHANGED',
+        userId: modifier.id,
+        userName: modifier.name,
+        userAvatar: modifier.avatar || '',
+        action: `updated status of "${updated.title}" to ${status}`,
+        target: updated.title,
+        projectName: updated.projectName,
+        projectId: updated.projectId,
+        taskId: updated.id,
+      });
+    }
+
+    return updated;
+  };
+
+  const updateTaskProgress = async (id, progress) => {
+    const updated = await apiService.updateTaskProgress(id, progress);
+    setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    return updated;
+  };
+
+  const addTaskDependency = async (taskId, dependencyId) => {
+    const updated = await apiService.addTaskDependency(taskId, dependencyId);
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
+    return updated;
+  };
+
+  const removeTaskDependency = async (taskId, dependencyId) => {
+    const updated = await apiService.removeTaskDependency(taskId, dependencyId);
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
     return updated;
   };
 
@@ -229,24 +245,13 @@ export function ProjectProvider({ children }) {
   };
 
   const resetAllData = () => {
-    localStorage.removeItem('ptms_projects');
-    localStorage.removeItem('ptms_tasks');
     localStorage.removeItem('ptms_activities');
     refreshProjects();
-    setTasks(mockTasks);
-    setActivities(mockActivities);
   };
 
-  // Project Task Resolver with backward compatibility for Phase 1 mock tasks
+  // Project Task Resolver with real MongoDB references
   const getProjectTasks = (projectId) => {
-    const project = projects.find((p) => p.id === projectId || p._id === projectId || p.legacyId === projectId);
-    return tasks.filter((t) => {
-      if (t.projectId === projectId) return true;
-      if (project?.legacyId && t.projectId === project.legacyId) return true;
-      if (project?.id && t.projectId === project.id) return true;
-      if (project?.name && t.projectName && t.projectName.toLowerCase() === project.name.toLowerCase()) return true;
-      return false;
-    });
+    return tasks.filter((t) => t.projectId === projectId || t.project === projectId);
   };
 
   const getUserTasks = (userId) => {
@@ -298,6 +303,10 @@ export function ProjectProvider({ children }) {
     changeProjectManager,
     addTask,
     updateTask,
+    updateTaskStatus,
+    updateTaskProgress,
+    addTaskDependency,
+    removeTaskDependency,
     deleteTask,
     logActivity,
     resetAllData,

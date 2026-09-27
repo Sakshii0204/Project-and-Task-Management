@@ -1,7 +1,7 @@
 /**
- * Mock Tasks Dataset
- * Realistic tasks with interconnected dependencies, varied priorities, and both upcoming & overdue deadlines.
- * Reference Date Context: Late September 2026.
+ * Mock Tasks Dataset (LEGACY REFERENCE ONLY - NOT AUTHORITATIVE)
+ * Phase 4 migrated all core business entities (Users, Projects, Tasks) to MongoDB.
+ * This file is retained exclusively for offline reference and test fixtures.
  */
 
 export const mockTasks = [

@@ -45,7 +45,7 @@ export function getDaysOverdue(task, referenceDate = new Date()) {
 
 /**
  * Calculates project progress percentage based on its tasks.
- * Formula: (completed project tasks / total project tasks) * 100
+ * Formula: SUM(task.progress) / total project tasks
  * If project has no tasks, returns 0.
  * @param {Array<Object>} tasks - Tasks belonging to the project
  * @returns {number} - Rounded integer 0 to 100
@@ -53,8 +53,8 @@ export function getDaysOverdue(task, referenceDate = new Date()) {
 export function calculateProjectProgress(tasks) {
   if (!Array.isArray(tasks) || tasks.length === 0) return 0;
 
-  const completed = tasks.filter((t) => t.status === 'Completed').length;
-  return Math.round((completed / tasks.length) * 100);
+  const sumProgress = tasks.reduce((acc, t) => acc + (Number(t.progress) || 0), 0);
+  return Math.round(sumProgress / tasks.length);
 }
 
 /**

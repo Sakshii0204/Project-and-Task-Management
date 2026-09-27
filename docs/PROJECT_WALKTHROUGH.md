@@ -1257,4 +1257,174 @@ MongoDB (Database storage)
 ### Q25: Explain the end-to-end Phase 3 architecture.
 > "A user interacts with React Project components. `apiService.js` sends credentialed requests to Express routes. `authenticate` verifies the JWT HttpOnly cookie, Zod validates the payload, and `projectService` enforces RBAC and manager/member rules. `projectRepository` executes Mongoose queries with `.populate()` on MongoDB. Sanitized project JSON is returned to `ProjectContext`, updating the UI instantly."
 
+---
+
+## 20. PHASE 4 — DATABASE-BACKED TASK MANAGEMENT ENGINE & DEPENDENCIES
+
+### Overview
+In Phase 4, the Project & Task Management System completed its core database migration. All mock and `localStorage` task storage was retired. Tasks, task dependencies, priority rankings, assignment workflows, deadline monitoring, blocked state derivation, and dynamic project progress calculation are now 100% database-backed in MongoDB.
+
+### Core Business Entities: All Database-Backed
+1. **Users** (Phase 2): Stored in `users` collection in MongoDB. Handled via bcrypt password hashing, JWT HttpOnly authentication cookies, and role classification (`ADMIN`, `PROJECT_MANAGER`, `TEAM_MEMBER`).
+2. **Projects** (Phase 3): Stored in `projects` collection in MongoDB. Linked to manager (`ref: User`), members (`[ref: User]`), and creator (`ref: User`).
+3. **Tasks** (Phase 4): Stored in `tasks` collection in MongoDB. Linked to project (`ref: Project`), assignee (`ref: User`), creator (`ref: User`), and dependencies (`[ref: Task]`).
+
+---
+
+### The Updated 2-Minute Elevator Pitch (Post-Phase 4)
+
+> *"The Project & Task Management System is a full-stack, enterprise-grade engineering management platform built with the MERN stack (MongoDB, Express, React, Node.js). It provides end-to-end project planning, task delegation, dependency tracking, and automated deadline risk escalation.*
+>
+> *In Phase 2, we built secure JWT HttpOnly cookie authentication and user RBAC. In Phase 3, we migrated Projects to MongoDB with manager delegation and collision-safe project codes. In Phase 4, we replaced mock tasks with a database-backed Task Management Engine.*
+>
+> *All core entities—Users, Projects, and Tasks—are fully persisted in MongoDB. Tasks support priority classification, deadlines, assignee verification against project members, and a directed acyclic graph (DAG) dependency engine with iterative DFS cycle detection. The system dynamically derives blocked and overdue states, recalculates project progress in real time as the average of task progress, and strictly enforces resource-level authorization across Admins, Project Managers, and Team Members with 100% automated test coverage."*
+
+---
+
+### Phase 4 Interview Demonstration Flow
+
+When demonstrating Phase 4 to an interview panel, walk through this live execution script:
+
+1. **Step 1: Admin / PM Authentication**:
+   - Log in as Project Manager Priya (`pm@thinqloud.com`).
+   - Show session restoration via HttpOnly JWT cookie.
+2. **Step 2: Project & Task Creation**:
+   - Open *Enterprise Cloud Migration*.
+   - Click **Create Task** to open `TaskModal`.
+   - Show that Assignee dropdown is dynamically restricted to project members (e.g. Sakshi, Amit).
+   - Enter title, priority (`High`), due date, and save.
+   - Refresh page to demonstrate persistent MongoDB storage.
+3. **Step 3: Dependency Configuration**:
+   - Open *Microservices Deployment*.
+   - Add dependency on *Provision EKS Kubernetes Cluster Infrastructure*.
+   - Explain terminology: *Microservices Deployment* **depends on** *Kubernetes Cluster*; *Kubernetes Cluster* **blocks** *Microservices Deployment*.
+4. **Step 4: Blocked State & Blocked Completion Prevention**:
+   - Show that *Microservices Deployment* displays `Blocked` with prerequisite badge.
+   - Attempt to mark the blocked task as `Completed`.
+   - Demonstrate server-side rejection with error message: *"Cannot complete task while blocking prerequisite dependencies remain incomplete"*.
+5. **Step 5: Circular Dependency Rejection**:
+   - Attempt to make *Provision EKS Cluster* depend on *Microservices Deployment*.
+   - Show immediate HTTP 400 rejection: *"Circular dependency detected: a task cannot depend on a downstream dependent task"*.
+   - Explain the iterative DFS cycle detection algorithm running on the backend.
+6. **Step 6: Completion & Unblocking**:
+   - Mark the prerequisite task (*Kubernetes Cluster*) as `Completed` (progress hits 100%, `completedAt` timestamp generated).
+   - Show dependent task automatically transitioning from blocked to ready.
+7. **Step 7: Dynamic Project Progress Recalculation**:
+   - Show that project progress updates dynamically as $\frac{\sum \text{task.progress}}{N}$.
+8. **Step 8: Role-Scoped Views (`My Tasks` & `Overdue`)**:
+   - Navigate to `/tasks/my` to show personal task queue.
+   - Navigate to `/overdue` to show past-due tasks with overdue day counters.
+   - Log in as Team Member Sakshi (`dev@thinqloud.com`).
+   - Demonstrate that Sakshi can update progress and status on her assigned task, but cannot reassign the task or modify unauthorized project fields.
+
+---
+
+### Phase 4 Interview Questions & Answers (30 High-Frequency Questions)
+
+#### Q1: How is a Task stored in MongoDB?
+> "A Task is stored as a document in the `tasks` collection using Mongoose schema modeling. It contains scalar fields (`title`, `description`, `priority`, `status`, `progress`, `startDate`, `dueDate`, `completedAt`) and relational `ObjectId` references (`project`, `assignee`, `createdBy`, and an array of `dependencies`)."
+
+#### Q2: How does Task relate to Project?
+> "Through a normalized one-to-many relationship: `Task.project` stores an `ObjectId` referencing the `Project` model. Every task must belong to an active, non-archived project. We index `{ project: 1 }` for sub-millisecond retrieval of project tasks."
+
+#### Q3: How does Task relate to User?
+> "A Task maintains two distinct user relationships:
+> 1. `Task.assignee` (`ref: User`): The team member responsible for execution.
+> 2. `Task.createdBy` (`ref: User`): The user who created the task (extracted securely from `req.user._id`)."
+
+#### Q4: How are task dependencies represented in the database?
+> "In `Task.dependencies`, stored as an array of `ObjectId` references pointing to other `Task` documents within the exact same project: `dependencies: [{ type: ObjectId, ref: 'Task' }]`."
+
+#### Q5: What is a dependency graph?
+> "A dependency graph is a directed graph $G = (V, E)$ where vertices ($V$) represent individual tasks and directed edges ($E$) represent prerequisite requirements. An edge $A \to B$ means Task A requires Task B to be finished before Task A can complete."
+
+#### Q6: Why is the dependency graph directed?
+> "Because dependencies are directional and asymmetric: if Frontend Integration depends on Backend API, Backend API does not depend on Frontend Integration. The direction of the edge determines execution sequence."
+
+#### Q7: What is a circular dependency?
+> "A circular dependency is a closed loop in a directed graph (e.g., $A \to B \to C \to A$). If Task A depends on Task B, Task B depends on Task C, and Task C depends on Task A, none of the tasks can ever start or complete, causing permanent project deadlock."
+
+#### Q8: How do you detect cycles when a user adds a dependency?
+> "Before saving a new dependency edge $A \to B$, we run an iterative Depth-First Search (DFS) starting from $B$. We traverse all outgoing dependency edges from $B$. If traversal ever visits $A$, a path $B \rightsquigarrow A$ already exists. Adding $A \to B$ would complete a cycle ($A \to B \rightsquigarrow A$). The service intercepts this and rejects with HTTP 400 Bad Request."
+
+#### Q9: Why use DFS instead of BFS for cycle detection?
+> "Both DFS and BFS have the same time complexity $O(V + E)$ on finite directed graphs. We chose iterative DFS because it uses a simple LIFO stack, checks deep dependency chains directly, and minimizes memory allocation without call stack recursion overhead in Node.js."
+
+#### Q10: What happens if A depends on B and B depends on A?
+> "When the user attempts to add $B \to A$ while $A \to B$ already exists, DFS traversal starting from $A$ immediately encounters $B$, identifies the cycle in 1 step, and aborts with HTTP 400: `'Circular dependency detected'`."
+
+#### Q11: Can tasks depend on tasks from another project?
+> "No. Cross-project dependencies are explicitly rejected by `taskService`. Prerequisite dependencies must belong to the exact same `projectId`. This prevents cascading deadlocks and maintains workspace encapsulation."
+
+#### Q12: What makes a task logically blocked?
+> "A task is logically blocked if it has at least one prerequisite task in `dependencies` whose `status !== 'COMPLETED'`. We expose this derived state as `isBlocked: true` and populate `blockingDependencies`."
+
+#### Q13: Do you store `isBlocked` as a persistent boolean in MongoDB?
+> "No, `isBlocked` is derived dynamically during query time and response serialization. Storing derived state in MongoDB risks data staleness: if Task B completes, Task A's stored boolean would be out of sync unless expensive cascading writes were executed across dependent documents."
+
+#### Q14: What makes a task overdue?
+> "A task is overdue when `current date > dueDate` and `status !== 'COMPLETED'`. This is dynamically computed during JSON serialization: `ret.isOverdue = !isCompleted && due && due < now;`."
+
+#### Q15: Why isn't a completed late task considered currently overdue?
+> "Because once a task reaches `COMPLETED`, its deadline risk has been resolved. Showing completed tasks on an active overdue alert screen causes false operational panic."
+
+#### Q16: How do status and progress remain consistent?
+> "The backend synchronizes status and progress symmetrically:
+> 1. Setting `progress = 100` forces `status = 'COMPLETED'` and records `completedAt`.
+> 2. Setting `status = 'COMPLETED'` forces `progress = 100` and records `completedAt`.
+> 3. Moving away from `COMPLETED` to `IN_PROGRESS` or `TODO` clears `completedAt` to `null` and resets progress if it was still 100."
+
+#### Q17: What is `completedAt`?
+> "It is a timestamp (`Date`) recorded by Mongoose when a task transitions to `COMPLETED`. It provides auditable proof of when deliverables were actually completed."
+
+#### Q18: What happens when a completed task is reopened?
+> "`taskService` sets `completedAt = null`. If the client did not explicitly provide a lower progress value, progress is reset to `0%` so the task no longer claims completion."
+
+#### Q19: How do you calculate project progress?
+> "Project progress is calculated dynamically as the average progress of all tasks in the project:
+> $$\text{Progress} = \text{round}\left( \frac{\sum \text{task.progress}}{N} \right)$$
+> If a project has 0 tasks, progress is 0%."
+
+#### Q20: Why calculate project progress from Tasks rather than manual manager input?
+> "Manual progress entry is subjective and prone to manager bias or outdated estimates. Deriving progress directly from individual task completion percentages provides transparent, data-driven delivery metrics."
+
+#### Q21: What happens if a project has zero tasks?
+> "The repository returns `progress: 0%` and total tasks `0`. The formula handles division by zero safely by returning 0 when `tasks.length === 0`."
+
+#### Q22: How does the `My Tasks` endpoint work?
+> "`GET /api/tasks/my` calls `taskService.getMyTasks()`. It automatically scopes the query filter to `{ assignee: req.user._id }`. Team members only see tasks assigned to them, with full support for status/priority filtering, search, and pagination."
+
+#### Q23: How is Team Member task access restricted?
+> "We enforce resource-level authorization:
+> - Team members can view tasks in projects they belong to.
+> - Team members can only update `status` and `progress` on tasks assigned to them (`task.assignee.equals(user._id)`).
+> - Attempts to modify `title`, `description`, `project`, or `assignee` by a team member are rejected with HTTP 403 Forbidden."
+
+#### Q24: Can a Team Member reassign their task to someone else?
+> "No. Task delegation and reassignment is restricted to Admins and the Project Manager who leads that project. If a Team Member attempts to pass `assignee` in the update payload, the service throws `403 Forbidden: Team members can only update status and progress`."
+
+#### Q25: How do you prevent assigning tasks to invalid users?
+> "`taskService.createTask` performs two validations on `assignee`:
+> 1. Verifies the user exists in MongoDB and `user.status === 'ACTIVE'`.
+> 2. Verifies the user is an assigned member of the project (`project.members.includes(assigneeId)` or is the project manager). Rejects with HTTP 400 Bad Request otherwise."
+
+#### Q26: How do you prevent cross-project dependencies?
+> "When adding a dependency, the service loads both tasks and compares `depTask.project.toString() !== task.project.toString()`. If they do not match, it immediately rejects with HTTP 400: `'Dependencies must belong to the exact same project'`."
+
+#### Q27: How do task filters and search work?
+> "The client passes query parameters (`project`, `assignee`, `status`, `priority`, `search`, `overdue`, `page`, `limit`). The service escapes the search string against ReDoS and applies MongoDB filter criteria: `$or: [{ title: { $regex: escaped, $options: 'i' } }, { description: { $regex: escaped, $options: 'i' } }]`."
+
+#### Q28: Why paginate Tasks on the backend?
+> "Enterprise projects often have hundreds or thousands of tasks. Fetching all tasks at once increases database memory consumption, inflates payload size, and slows frontend rendering. Paginating with `page` and `limit` ensures constant response time and bounded memory usage."
+
+#### Q29: How did you migrate from mock tasks to MongoDB without breaking the frontend?
+> "We implemented an adapter layer: `normalizeTask()` in `apiService.js` transforms MongoDB documents (`_id`, uppercase status `TODO`, nested ObjectId references) into the normalized shape expected by Phase 1 UI components (`id`, title-cased `To Do`, populated names and avatars). This allowed us to swap the data source while preserving 100% of the UI design and user experience."
+
+#### Q30: What was the biggest technical challenge in Phase 4?
+> "Ensuring data integrity across interrelated business rules:
+> 1. Preventing circular dependencies in arbitrary directed graph topologies using iterative DFS.
+> 2. Preventing blocked tasks from being marked completed while dependencies remain unresolved.
+> 3. Synchronizing status, progress, and `completedAt` across concurrent status updates without inconsistent states."
+
+
 

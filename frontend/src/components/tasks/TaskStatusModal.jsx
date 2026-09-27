@@ -19,15 +19,21 @@ function TaskStatusModalContent({ onClose, task, onUpdate }) {
   const [status, setStatus] = useState(task.status || 'To Do');
   const [progress, setProgress] = useState(task.progress !== undefined ? task.progress : 0);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setErrorMessage('');
     try {
       const numericProgress = Number(progress);
       const finalProgress = status === 'Completed' ? 100 : numericProgress;
       await onUpdate(task.id, { status, progress: finalProgress });
       onClose();
+    } catch (err) {
+      setErrorMessage(
+        err.message || 'Complete all blocking prerequisite dependencies before completing this task.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -43,6 +49,21 @@ function TaskStatusModalContent({ onClose, task, onUpdate }) {
   return (
     <Modal isOpen={true} onClose={onClose} title="Update Task Status" maxWidth="450px">
       <form onSubmit={handleSubmit}>
+        {errorMessage && (
+          <div
+            style={{
+              padding: '10px 14px',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid var(--danger-color)',
+              borderRadius: '6px',
+              color: 'var(--danger-color)',
+              fontSize: '13px',
+              marginBottom: '14px',
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
           Updating status for <strong>{task.title}</strong>
         </p>

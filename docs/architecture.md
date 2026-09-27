@@ -347,4 +347,77 @@ graph TD
     CheckMember -->|No / Tries Mutation| DenyTM[403 Forbidden]
 ```
 
+---
+
+## Phase 4 Backend Architecture — Task Engine & Dependencies
+
+### Core Database Entities & Relationships
+
+```mermaid
+erDiagram
+    User ||--o{ Project : "manages"
+    User ||--o{ Project : "belongs to (members)"
+    User ||--o{ Task : "assigned to"
+    User ||--o{ Task : "created by"
+    Project ||--o{ Task : "contains"
+    Task ||--o{ Task : "depends on (dependencies)"
+
+    User {
+        ObjectId _id PK
+        string name
+        string email UK
+        string password
+        string role "ADMIN | PROJECT_MANAGER | TEAM_MEMBER"
+        string status "ACTIVE | INACTIVE"
+        string department
+    }
+
+    Project {
+        ObjectId _id PK
+        string name
+        string code UK
+        ObjectId manager FK "ref: User"
+        Array members FK "ref: User"
+        string status "PLANNING | ACTIVE | ON_HOLD | COMPLETED | ARCHIVED"
+        string priority "LOW | MEDIUM | HIGH | CRITICAL"
+        Date startDate
+        Date dueDate
+        ObjectId createdBy FK "ref: User"
+    }
+
+    Task {
+        ObjectId _id PK
+        string title
+        string description
+        ObjectId project FK "ref: Project"
+        ObjectId assignee FK "ref: User"
+        ObjectId createdBy FK "ref: User"
+        string priority "LOW | MEDIUM | HIGH | CRITICAL"
+        string status "TODO | IN_PROGRESS | BLOCKED | COMPLETED"
+        number progress "0 to 100"
+        Date startDate
+        Date dueDate
+        Array dependencies FK "ref: Task"
+        Date completedAt
+    }
+```
+
+### Relational Schema & Reference Strategy
+1. **Normalized References**:
+   - `Task.project`: Refers to `Project` ObjectId. Ensures cascade operations, metrics calculations, and cross-project isolation.
+   - `Task.assignee`: Refers to `User` ObjectId. The backend strictly enforces that the assignee is an active user and a declared member of the referenced project.
+   - `Task.createdBy`: Immutably populated from session `req.user._id`.
+   - `Task.dependencies`: Array of `Task` ObjectIds belonging to the same project.
+2. **Populate Strategy**:
+   - Project: populated with safe fields `_id name code status`.
+   - Assignee: populated with `_id name email role avatar`. Password hash is never populated.
+   - Dependencies: populated with `_id title status progress`.
+3. **Directed Dependency Graph & Cycle Detection**:
+   - An edge $A \to B$ indicates Task A depends on Task B.
+   - Before saving an edge $A \to B$, an iterative Depth-First Search (DFS) verifies whether $B$ can already reach $A$ through existing prerequisite edges. If so, the operation is rejected with `400 Bad Request`.
+4. **Dynamic Derived Fields**:
+   - `isBlocked`: `true` if any prerequisite task has `status !== 'COMPLETED'`.
+   - `isOverdue`: `true` if `now > dueDate` and `status !== 'COMPLETED'`.
+
+
 

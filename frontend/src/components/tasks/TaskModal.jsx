@@ -109,8 +109,18 @@ function TaskModalContent({
     label: p.name,
   }));
 
-  const userOptions = users.map((u) => ({
-    value: u.id,
+  const selectedProject = projects.find((p) => p.id === formData.projectId || p._id === formData.projectId);
+  const eligibleUsers = selectedProject?.members?.length
+    ? users.filter((u) => {
+        const uId = u.id || u._id;
+        const memberIds = (selectedProject.members || []).map((m) => (typeof m === 'object' ? (m.id || m._id) : m));
+        const managerId = typeof selectedProject.manager === 'object' ? (selectedProject.manager?.id || selectedProject.manager?._id) : selectedProject.managerId;
+        return memberIds.includes(uId) || uId === managerId;
+      })
+    : users;
+
+  const userOptions = (eligibleUsers.length > 0 ? eligibleUsers : users).map((u) => ({
+    value: u.id || u._id,
     label: `${u.name} (${u.role})`,
   }));
 

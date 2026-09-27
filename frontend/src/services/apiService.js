@@ -10,7 +10,6 @@
 
 import { mockUsers } from '../data/mockUsers';
 import { mockProjects } from '../data/mockProjects';
-import { mockTasks } from '../data/mockTasks';
 import { mockActivities } from '../data/mockActivities';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -143,6 +142,95 @@ function setStoredData(key, data) {
   } catch (e) {
     console.error('Failed to persist to localStorage', e);
   }
+}
+
+// Normalize MongoDB task object to ensure frontend compatibility
+export function normalizeTask(task) {
+  if (!task) return null;
+
+  const statusMapping = {
+    TODO: 'To Do',
+    IN_PROGRESS: 'In Progress',
+    BLOCKED: 'Blocked',
+    COMPLETED: 'Completed',
+  };
+
+  const priorityMapping = {
+    LOW: 'Low',
+    MEDIUM: 'Medium',
+    HIGH: 'High',
+    CRITICAL: 'Critical',
+  };
+
+  const id = task._id ? task._id.toString() : task.id;
+  const projectObj = task.project && typeof task.project === 'object' ? task.project : null;
+  const projectId = projectObj ? (projectObj._id ? projectObj._id.toString() : projectObj.id) : (task.project?.toString() || task.projectId || '');
+  const projectName = projectObj ? projectObj.name : (task.projectName || 'Unassigned Project');
+
+  const assigneeObj = task.assignee && typeof task.assignee === 'object' ? task.assignee : null;
+  const assigneeId = assigneeObj ? (assigneeObj._id ? assigneeObj._id.toString() : assigneeObj.id) : (task.assignee?.toString() || task.assigneeId || '');
+  const assigneeName = assigneeObj ? assigneeObj.name : (task.assigneeName || 'Unassigned');
+  const assigneeAvatar = assigneeObj ? (assigneeObj.avatar || '') : (task.assigneeAvatar || '');
+
+  const createdByObj = task.createdBy && typeof task.createdBy === 'object' ? task.createdBy : null;
+  const createdById = createdByObj ? (createdByObj._id ? createdByObj._id.toString() : createdByObj.id) : (task.createdBy?.toString() || task.creatorId || '');
+  const creatorName = createdByObj ? createdByObj.name : (task.creatorName || '');
+
+  // Normalized dependencies
+  const dependencies = Array.isArray(task.dependencies)
+    ? task.dependencies.map((d) => {
+        if (!d) return null;
+        if (typeof d === 'object') {
+          return {
+            id: d._id ? d._id.toString() : d.id,
+            _id: d._id ? d._id.toString() : d.id,
+            title: d.title || 'Prerequisite Task',
+            status: statusMapping[d.status] || d.status || 'To Do',
+            rawStatus: d.status,
+            progress: Number(d.progress) || 0,
+          };
+        }
+        return d.toString();
+      }).filter(Boolean)
+    : [];
+
+  const rawStatus = task.status || 'TODO';
+  const rawPriority = task.priority || 'MEDIUM';
+
+  return {
+    ...task,
+    id,
+    _id: id,
+    title: task.title || '',
+    description: task.description || '',
+    projectId,
+    project: projectId,
+    projectName,
+    projectCode: projectObj?.code || '',
+    assigneeId,
+    assignee: assigneeId,
+    assigneeName,
+    assigneeAvatar,
+    createdById,
+    creatorName,
+    status: statusMapping[rawStatus] || rawStatus,
+    rawStatus,
+    priority: priorityMapping[rawPriority] || rawPriority,
+    rawPriority,
+    progress: Number(task.progress) || 0,
+    startDate: task.startDate ? new Date(task.startDate).toISOString().slice(0, 10) : '',
+    dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : '',
+    completedAt: task.completedAt || null,
+    dependencies,
+    isBlocked: Boolean(task.isBlocked),
+    blockingDependencies: Array.isArray(task.blockingDependencies)
+      ? task.blockingDependencies.map((b) => (typeof b === 'object' ? b.title || b.name || 'Prerequisite' : b))
+      : [],
+    isOverdue: Boolean(task.isOverdue),
+    daysOverdue: Number(task.daysOverdue) || 0,
+    createdAt: task.createdAt || new Date().toISOString(),
+    updatedAt: task.updatedAt || new Date().toISOString(),
+  };
 }
 
 export const apiService = {
@@ -326,48 +414,153 @@ export const apiService = {
   },
 
   // ==========================================
-  // PHASE 1 PRESERVED: Mock Tasks & Activities
-  // (Migrating to backend in Phase 4)
+  // REAL BACKEND API: Tasks (Phase 4)
   // ==========================================
 
-  async getTasks() {
-    return getStoredData(STORAGE_KEYS.TASKS, mockTasks);
+  async getTasks(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.project) queryParams.set('project', params.project);
+    if (params.assignee) queryParams.set('assignee', params.assignee);
+    if (params.status) queryParams.set('status', params.status);
+    if (params.priority) queryParams.set('priority', params.priority);
+    if (params.search) queryParams.set('search', params.search);
+    if (params.overdue) queryParams.set('overdue', 'true');
+    if (params.page) queryParams.set('page', params.page);
+    if (params.limit) queryParams.set('limit', params.limit);
+    if (params.sort) queryParams.set('sort', params.sort);
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const response = await request(`/tasks${queryString}`, {
+      method: 'GET',
+    });
+    const rawTasks = response.data?.tasks || [];
+    return rawTasks.map(normalizeTask);
   },
 
   async getTaskById(id) {
-    const tasks = getStoredData(STORAGE_KEYS.TASKS, mockTasks);
-    return tasks.find((t) => t.id === id) || null;
+    const response = await request(`/tasks/${id}`, {
+      method: 'GET',
+    });
+    return normalizeTask(response.data?.task);
+  },
+
+  async getMyTasks(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.status) queryParams.set('status', params.status);
+    if (params.priority) queryParams.set('priority', params.priority);
+    if (params.search) queryParams.set('search', params.search);
+    if (params.page) queryParams.set('page', params.page);
+    if (params.limit) queryParams.set('limit', params.limit);
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const response = await request(`/tasks/my${queryString}`, {
+      method: 'GET',
+    });
+    const rawTasks = response.data?.tasks || [];
+    return rawTasks.map(normalizeTask);
+  },
+
+  async getOverdueTasks(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.set('page', params.page);
+    if (params.limit) queryParams.set('limit', params.limit);
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const response = await request(`/tasks/overdue${queryString}`, {
+      method: 'GET',
+    });
+    const rawTasks = response.data?.tasks || [];
+    return rawTasks.map(normalizeTask);
   },
 
   async createTask(taskData) {
-    const tasks = getStoredData(STORAGE_KEYS.TASKS, mockTasks);
-    const newTask = {
-      ...taskData,
-      id: `task-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+    const payload = {
+      title: taskData.title,
+      description: taskData.description || '',
+      project: taskData.projectId || taskData.project,
+      assignee: taskData.assigneeId || taskData.assignee,
+      priority: (taskData.priority || 'MEDIUM').toUpperCase(),
+      status: (taskData.status || 'TODO').toUpperCase().replace(' ', '_'),
+      progress: Number(taskData.progress) || 0,
+      dependencies: Array.isArray(taskData.dependencies) ? taskData.dependencies : [],
     };
-    const updated = [newTask, ...tasks];
-    setStoredData(STORAGE_KEYS.TASKS, updated);
-    return newTask;
+    if (taskData.startDate) payload.startDate = taskData.startDate;
+    if (taskData.dueDate) payload.dueDate = taskData.dueDate;
+
+    const response = await request('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return normalizeTask(response.data?.task);
   },
 
   async updateTask(id, updates) {
-    const tasks = getStoredData(STORAGE_KEYS.TASKS, mockTasks);
-    const index = tasks.findIndex((t) => t.id === id);
-    if (index !== -1) {
-      tasks[index] = { ...tasks[index], ...updates };
-      setStoredData(STORAGE_KEYS.TASKS, tasks);
-      return tasks[index];
-    }
-    throw new Error('Task not found');
+    const payload = {};
+    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.assigneeId || updates.assignee) payload.assignee = updates.assigneeId || updates.assignee;
+    if (updates.priority) payload.priority = updates.priority.toUpperCase();
+    if (updates.status) payload.status = updates.status.toUpperCase().replace(' ', '_');
+    if (updates.progress !== undefined) payload.progress = Number(updates.progress);
+    if (updates.startDate) payload.startDate = updates.startDate;
+    if (updates.dueDate) payload.dueDate = updates.dueDate;
+    if (updates.dependencies) payload.dependencies = updates.dependencies;
+
+    const response = await request(`/tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return normalizeTask(response.data?.task);
+  },
+
+  async updateTaskStatus(id, status) {
+    const response = await request(`/tasks/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: status.toUpperCase().replace(' ', '_') }),
+    });
+    return normalizeTask(response.data?.task);
+  },
+
+  async updateTaskProgress(id, progress) {
+    const response = await request(`/tasks/${id}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify({ progress: Number(progress) }),
+    });
+    return normalizeTask(response.data?.task);
+  },
+
+  async addTaskDependency(taskId, dependencyId) {
+    const response = await request(`/tasks/${taskId}/dependencies`, {
+      method: 'POST',
+      body: JSON.stringify({ dependencyId }),
+    });
+    return normalizeTask(response.data?.task);
+  },
+
+  async removeTaskDependency(taskId, dependencyId) {
+    const response = await request(`/tasks/${taskId}/dependencies/${dependencyId}`, {
+      method: 'DELETE',
+    });
+    return normalizeTask(response.data?.task);
   },
 
   async deleteTask(id) {
-    const tasks = getStoredData(STORAGE_KEYS.TASKS, mockTasks);
-    const updated = tasks.filter((t) => t.id !== id);
-    setStoredData(STORAGE_KEYS.TASKS, updated);
+    await request(`/tasks/${id}`, {
+      method: 'DELETE',
+    });
     return true;
   },
+
+  async getProjectMetrics(projectId) {
+    const response = await request(`/tasks/project/${projectId}/metrics`, {
+      method: 'GET',
+    });
+    return response.data?.metrics;
+  },
+
+  // ==========================================
+  // Activities (Audit Trail)
+  // ==========================================
 
   async getActivities() {
     return getStoredData(STORAGE_KEYS.ACTIVITIES, mockActivities);
