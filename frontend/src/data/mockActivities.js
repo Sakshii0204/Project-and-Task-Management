@@ -1,0 +1,73 @@
+/**
+ * Mock Audit & Activity Log Dataset
+ * Tracks realistic collaborative events across projects and tasks
+ */
+
+export const mockActivities = [
+  {
+    id: 'act-1',
+    type: 'TASK_COMPLETED',
+    userId: 'user-neha',
+    userName: 'Neha Verma',
+    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    action: 'marked as completed',
+    target: 'Checkout Friction Reduction & Payment UI Redesign',
+    projectName: 'E-Commerce Payment Gateway 2.0',
+    timestamp: '2026-09-26T10:15:00.000Z',
+  },
+  {
+    id: 'act-2',
+    type: 'TASK_ASSIGNED',
+    userId: 'user-pm',
+    userName: 'Priya Sundaram',
+    userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    action: 'assigned task to Sakshi Sharma',
+    target: 'Automated Payment Webhook Retry Engine with Exponential Backoff',
+    projectName: 'E-Commerce Payment Gateway 2.0',
+    timestamp: '2026-09-25T16:40:00.000Z',
+  },
+  {
+    id: 'act-3',
+    type: 'DEADLINE_CHANGED',
+    userId: 'user-pm',
+    userName: 'Priya Sundaram',
+    userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    action: 'extended deadline to Oct 05, 2026',
+    target: 'Microservices Containerization & Helm Charts',
+    projectName: 'Enterprise Cloud Migration',
+    timestamp: '2026-09-24T14:20:00.000Z',
+  },
+  {
+    id: 'act-4',
+    type: 'STATUS_CHANGED',
+    userId: 'user-amit',
+    userName: 'Amit Deshmukh',
+    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    action: 'changed status to Blocked (Pending AWS Quota Increase)',
+    target: 'Database Zero-Downtime Replication to AWS Aurora',
+    projectName: 'Enterprise Cloud Migration',
+    timestamp: '2026-09-23T11:05:00.000Z',
+  },
+  {
+    id: 'act-5',
+    type: 'PROJECT_CREATED',
+    userId: 'user-admin',
+    userName: 'Rajesh Kulkarni',
+    userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    action: 'created new project workspace',
+    target: 'AI Customer Analytics Engine',
+    projectName: 'AI Customer Analytics Engine',
+    timestamp: '2026-09-20T09:30:00.000Z',
+  },
+  {
+    id: 'act-6',
+    type: 'TASK_COMPLETED',
+    userId: 'user-kavita',
+    userName: 'Kavita Patel',
+    userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    action: 'marked as completed',
+    target: 'Kubernetes EKS Cluster Provisioning & RBAC',
+    projectName: 'Enterprise Cloud Migration',
+    timestamp: '2026-09-12T17:50:00.000Z',
+  },
+];
