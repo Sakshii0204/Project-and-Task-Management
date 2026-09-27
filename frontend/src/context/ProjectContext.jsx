@@ -156,22 +156,9 @@ export function ProjectProvider({ children }) {
   };
 
   // Task CRUD with Real Database Backend (Phase 4)
-  const addTask = async (taskData, creator) => {
+  const addTask = async (taskData) => {
     const created = await apiService.createTask(taskData);
     setTasks((prev) => [created, ...prev]);
-
-    await logActivity({
-      type: 'TASK_CREATED',
-      userId: creator?.id || 'admin',
-      userName: creator?.name || 'Project Manager',
-      userAvatar: creator?.avatar || '',
-      action: `created task "${created.title}"`,
-      target: created.title,
-      projectName: created.projectName,
-      projectId: created.projectId,
-      taskId: created.id,
-    });
-
     return created;
   };
 
