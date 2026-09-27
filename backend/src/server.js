@@ -36,5 +36,14 @@ const handleShutdown = async (signal) => {
 
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.once('SIGUSR2', () => {
+  if (server) {
+    server.close(() => {
+      process.kill(process.pid, 'SIGUSR2');
+    });
+  } else {
+    process.kill(process.pid, 'SIGUSR2');
+  }
+});
 
 startServer();
