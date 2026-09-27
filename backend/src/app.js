@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
+import projectRoutes from './routes/project.routes.js';
 import { notFound } from './middleware/notFound.middleware.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
@@ -64,6 +65,7 @@ app.get('/api/health', (_req, res) => {
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
 
 // 404 Handler
 app.use(notFound);

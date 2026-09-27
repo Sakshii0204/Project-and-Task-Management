@@ -897,29 +897,29 @@ PHASE 2 (Upcoming):
 
 ---
 
-## 26. 2-MINUTE PROJECT ELEVATOR PITCH (PHASE 2 UPDATED)
+## 26. 2-MINUTE PROJECT ELEVATOR PITCH (PHASE 3 UPDATED)
 
 *(Practice speaking this aloud for your interview introduction)*:
 
 > "Hello! I built the **Project & Task Management System** for the Thinqloud Solutions recruitment drive. 
 >
-> The business problem this system addresses is operational friction in engineering delivery teams—unclear task ownership, invisible blockers, unmonitored deadlines, and scattered communication across informal channels.
+> The business problem this system addresses is delivery friction and lack of visibility in technical teams—unclear task ownership, invisible blockers, unmonitored deadlines, and scattered communication across informal channels.
 >
-> To address this, I designed a multi-role enterprise platform tailored for three organizational roles: **Admins**, **Project Managers**, and **Team Members**.
+> To solve this, I designed a multi-role enterprise platform tailored for three organizational roles: **Admins**, **Project Managers**, and **Team Members**.
 >
-> Across **Phase 1 and Phase 2**, we have delivered:
-> 1. A responsive, component-driven **React 19 frontend** built with **Vite, React Router DOM, and a custom CSS design system**. It features dynamic executive KPIs, project completion meters, prerequisite task dependency tracking, and real-time overdue alerts computed on the fly.
+> Across **Phases 1, 2, and 3**, we have delivered:
+> 1. A responsive **React 19 frontend** built with **Vite, React Router DOM, and custom CSS design tokens**, featuring executive KPIs, project completion meters, prerequisite task dependency tracking, and real-time overdue alerts computed on the fly.
 > 2. A production-grade **MERN backend foundation** built on **Node.js, Express, MongoDB, and Mongoose**.
-> 3. An enterprise security layer featuring **real JWT authentication stored in secure HttpOnly cookies**, **bcrypt password hashing with salt rounds**, and **server-side Role-Based Access Control (RBAC)** middleware.
-> 4. Defensive API protections including **Helmet security headers, strict CORS configuration, Zod request validation, and IP rate limiting**.
+> 3. An enterprise security layer featuring **real JWT authentication stored in secure HttpOnly cookies**, **bcrypt password hashing**, **server-side Role-Based Access Control (RBAC)**, **Helmet security headers**, **strict CORS**, **Zod request validation**, and **rate limiting**.
+> 4. **Real database-backed Project Management (Phase 3)**: Projects, manager assignments, and team memberships are fully persisted in MongoDB using Mongoose document references (`ObjectId`), with **resource-level authorization**, collision-safe project code generation (`PRJ-XXXX`), search, filtering, pagination, and soft archive workflows.
 >
-> In accordance with our phase boundaries, **Phase 2 connects real authentication and user management to our MongoDB backend**, while projects and tasks currently operate on a reactive mock layer. This ensures that in Phase 3, we can seamlessly migrate project and task data models into MongoDB without breaking frontend contracts or introducing regressions.
+> In accordance with our phase boundaries, **Users and Projects are 100% database-backed in MongoDB**, while individual Tasks and task progress remain managed via our reactive Phase 1 mock store in localStorage. This strict phase boundary allowed us to thoroughly isolate and test our backend data models without regressions.
 >
-> The backend achieves 100% test coverage across authentication and authorization suites, the frontend compiles with zero ESLint warnings, and session integrity automatically survives full browser reloads."
+> Our backend achieves 100% test coverage across 44 automated tests, the frontend compiles with zero ESLint warnings, and session integrity seamlessly survives full browser reloads."
 
 ---
 
-## 27. STEP-BY-STEP INTERVIEW DEMO WALKTHROUGH (PHASE 2 UPDATED)
+## 27. STEP-BY-STEP INTERVIEW DEMO WALKTHROUGH (PHASE 3 UPDATED)
 
 Follow this exact sequence when demonstrating the application to interviewers:
 
@@ -931,37 +931,41 @@ Follow this exact sequence when demonstrating the application to interviewers:
 - **Action**: Navigate to `/login`. Click the **'Admin'** demo quick-fill button (`admin@thinqloud.com`), then click **'Sign In to Workspace'**.
 - **What to say**: *"When I click login, the React frontend submits a POST request to `/api/auth/login`. Our Express validation middleware validates the request using Zod. The backend retrieves the user from MongoDB, verifies the password using `bcrypt.compare`, signs a JWT containing the user ID, and returns it inside an HttpOnly cookie with `SameSite: Lax`. The frontend AuthContext receives the sanitized user profile without exposing any token to JavaScript."*
 
-### Step 3: Executive Dashboard & Dynamic Metrics
+### Step 3: Executive Dashboard with Live MongoDB Project Counts
 - **Action**: Land on `/dashboard`. Highlight the 6 KPI cards across the top and project progress bars.
-- **What to say**: *"Upon authentication, we land on the Executive Dashboard. These 6 KPI cards—Total Projects, Active Projects, Total Tasks, Completed, In-Progress, and Overdue—are dynamically computed in real-time from our data state rather than hardcoded."*
+- **What to say**: *"Upon authentication, we land on the Executive Dashboard. Total Projects and Active Projects are now derived directly from our live MongoDB database. Notice that Task statistics remain based on mock tasks—this is an intentional phase boundary until Phase 4."*
 
-### Step 4: Refresh Browser & Demonstrate Session Restoration
-- **Action**: Press `Ctrl + R` (or `F5`) in the browser to trigger a full page reload. Show the brief Loading Spinner before returning directly to `/dashboard`.
-- **What to say**: *"Notice that when I refresh the page, the user session remains intact. Because we do not store tokens in volatile React state or insecure localStorage, `AuthContext` makes a background GET request to `/api/auth/me` with `credentials: 'include'`. Express verifies the HttpOnly cookie, fetches the active user from MongoDB, and restores the authenticated state seamlessly."*
+### Step 4: Open Projects Portfolio & Create Real Project
+- **Action**: Click **'Projects'** in the sidebar. Click **'Create Project'**. Select Project Lead: `Priya Sundaram (Project Manager)`. Toggle team members. Enter Title: `Automated DevOps Pipeline`. Click **'Create Project'**.
+- **What to say**: *"When I submit this form, React dispatches a POST request to `/api/projects`. The backend validates the inputs with Zod, ensures the manager is an active Admin or PM, deduplicates team members, automatically generates a unique collision-safe project code (`PRJ-0006`), and stores the document in MongoDB. The new project appears in the UI instantly without page reload."*
 
-### Step 5: Team Page with Real MongoDB Users
-- **Action**: Click **'Team / Users'** in the sidebar. Show the list of users (`Rajesh Verma`, `Priya Sundaram`, `Vikram Malhotra`, etc.).
-- **What to say**: *"The Team Directory now fetches real organization accounts directly from our MongoDB database via `GET /api/users`. Notice that Admin and Project Manager roles can view this directory, and each user displays their true database role and department."*
+### Step 5: Open Project Detail & Show Real MongoDB Relationships
+- **Action**: Click on the newly created project to open its Project Detail page.
+- **What to say**: *"In Project Details, notice the Project Lead and Team Members. These are not static strings—they are populated Mongoose document references linking `Project.manager` and `Project.members` to real User ObjectIds in MongoDB."*
 
-### Step 6: Logout & Session Invalidation
-- **Action**: Click the User Profile badge in the header or sidebar and click **'Sign Out'**.
-- **What to say**: *"Clicking Sign Out calls `POST /api/auth/logout`. The Express server immediately clears the HttpOnly cookie by setting its expiration to the past. The browser discards the token and redirects the user to `/login`."*
+### Step 6: Browser Refresh to Demonstrate MongoDB Persistence
+- **Action**: Press `Ctrl + R` (or `F5`) in the browser to trigger a full page reload.
+- **What to say**: *"When I refresh the page, the user session restores automatically via `/api/auth/me`, and the project data reloads directly from MongoDB via `GET /api/projects/:id`. The project and its team assignments are permanently persisted in the database."*
 
-### Step 7: Login as Team Member & Demonstrate Server-Side RBAC
-- **Action**: Click the **'Team Member'** demo button (`dev@thinqloud.com`), then log in.
-- **What to say**: *"Now I log in as Vikram, an engineer with the `TEAM_MEMBER` role. Notice that administrative actions are hidden in the UI for optimal user experience. But more importantly, if Vikram attempts to invoke `GET /api/users` or `POST /api/users` directly via Postman or DevTools, our backend `authorize('ADMIN')` middleware rejects the request with HTTP `403 Forbidden`. The server is the true security perimeter, not client-side React code."*
+### Step 7: Edit Project, Change Manager, and Archive
+- **Action**: Click **'Edit Project'**. Change description or status to `Active`. Show that Admin can also reassign the project manager via `PATCH /api/projects/:id/manager`.
+- **What to say**: *"Administrators can update project configuration or reassign the project manager. If we archive the project, it executes a soft deletion via `PATCH /api/projects/:id/archive`, setting `archivedAt` timestamp rather than permanently destroying records."*
 
-### Step 8: Show ProtectedRoute vs Backend Security
-- **Action**: Manually navigate to a restricted URL or explain route protection.
-- **What to say**: *"In React, `ProtectedRoute` acts solely as client-side UX navigation guidance to prevent flash-of-unauthenticated-content. True security is enforced exclusively by Express middleware: `authenticate` checks token authenticity, and `authorize` verifies active MongoDB role permissions."*
+### Step 8: Search, Filter & Pagination
+- **Action**: Go back to `/projects`. Type `DevOps` in the search bar. Filter by status `Active`.
+- **What to say**: *"The project registry supports multi-criteria search and status filtering backed by backend queries with regex escaping and pagination support."*
 
-### Step 9: Show Projects & Tasks (Strict Phase 2 Boundary)
-- **Action**: Open **'Projects'** and **'Tasks'**. Show task dependency views and overdue warnings.
-- **What to say**: *"Notice that Projects, Tasks, and Dependencies continue to function smoothly. In Phase 2, we adhered to a strict phase boundary: projects and tasks remain managed via our reactive Phase 1 mock store in localStorage. We avoided premature database migration so our backend foundation could be tested in isolation."*
+### Step 9: Login as Project Manager & Show Resource-Level Authorization
+- **Action**: Log out and log in as `pm@thinqloud.com` (`Priya Sundaram`). Open `/projects`.
+- **What to say**: *"Now I'm logged in as Priya, a Project Manager. Priya can view and edit projects she manages or belongs to. If Priya attempts to modify an unrelated project directly via API, our backend service rejects the request with HTTP `403 Forbidden`. This is resource-level authorization enforced on the server."*
 
-### Step 10: Explain Phase 3 Migration Strategy
-- **Action**: Open the Project Details view.
-- **What to say**: *"In Phase 3, we will create Mongoose schemas for Projects and Tasks, replace `ProjectContext` mock calls with REST endpoints (`/api/projects`, `/api/tasks`), migrate relational user references to MongoDB ObjectIds, and add live notifications via Socket.IO."*
+### Step 10: Login as Team Member & Show Restricted Actions
+- **Action**: Log out and log in as `dev@thinqloud.com` (`Sakshi Sharma`). Open `/projects`.
+- **What to say**: *"Now logged in as Sakshi, an engineer with role `TEAM_MEMBER`. Notice the 'Create Project' and 'Edit Project' buttons are hidden. If Sakshi attempts to call `POST /api/projects` via Postman, our backend immediately returns `403 Forbidden`."*
+
+### Step 11: Explain Why Tasks Remain Mock & Phase 4 Strategy
+- **Action**: Open `/tasks`. Show task dependency views and overdue warnings.
+- **What to say**: *"Notice that Tasks, Dependencies, and Overdue calculations continue to work smoothly. In Phase 3, we strictly migrated Project and Team management to MongoDB. In Phase 4, we will create the Mongoose Task model, link tasks to `Project._id` and `User._id`, and make task progress and dependencies fully database-backed."*
 
 ---
 
@@ -1135,5 +1139,122 @@ MongoDB (Database storage)
 > "We use **Zod** schema validation through reusable middleware (`validateBody`, `validateParams`). Incoming request payloads are validated against strict type, length, regex, and enum rules before reaching controllers. If invalid, a standardized `400 Bad Request` with detailed field error messages is returned immediately."
 
 ### Q30: How will Projects connect to Users in Phase 3?
-> "In Phase 3, we will define a Mongoose `Project` schema where `projectManager` and `teamMembers` reference MongoDB `User._id` values using `Schema.Types.ObjectId` with `ref: 'User'`. When querying projects, Mongoose `populate('projectManager', 'name email avatar')` will join user details dynamically."
+> "In Phase 3, we defined the Mongoose `Project` schema where `manager` references a single `User` ObjectId, `members` references an array of `User` ObjectIds, and `createdBy` stores the creator user ID. When querying projects, Mongoose `populate()` joins user details (`_id name email role avatar department`) dynamically without storing redundant user snapshots."
+
+---
+
+## 30. PHASE 3: PROJECT & TEAM MANAGEMENT CORE CONCEPTS
+
+### Document Relationships in MongoDB
+- **MongoDB ObjectId**: A 12-byte (24-character hexadecimal) BSON primary key composed of a 4-byte timestamp, 5-byte random value, and 3-byte incrementing counter, ensuring global uniqueness across clusters.
+- **Document Reference**: Storing another document's `_id` inside a field rather than nesting the full object. Acts as a foreign key in NoSQL.
+- **Why Reference User Instead of Duplicating**: If user names, roles, or avatars change, updating a single user document immediately reflects across all projects. Duplicating user data creates data anomalies and synchronization complexity.
+- **Mongoose `populate()`**: An abstraction that automatically executes a secondary query behind the scenes to replace specified reference `ObjectId` fields with the actual referenced documents from another collection.
+- **Embedded vs Referenced Documents**:
+  - *Embedded*: Sub-documents nested directly within a parent document. Ideal for tightly bound, 1-to-few data that is always read together and doesn't exist independently (e.g., project address or milestone checklist).
+  - *Referenced*: Separate collections linked via `ObjectId`. Essential for 1-to-many and many-to-many relationships where entities have independent lifecycles (e.g., Users, Projects, Tasks).
+- **One-to-Many Relationship (Manager to Projects)**: A single User can manage multiple Projects (`Project.manager -> User._id`).
+- **Many-to-Many Relationship (Members to Projects)**: A Project has many assigned Users, and a User can be a member of multiple Projects (`Project.members[] -> [User._id]`).
+
+### Architectural Patterns
+- **Repository Pattern**: Encapsulates data access and query building (`Project.find()`, `findByIdAndUpdate()`). Decouples business rules from the underlying database driver or ODM.
+- **Service Layer**: Houses the core domain and business logic (e.g., role checks, manager validation, date rules, unique code generation). Does not handle HTTP request/response objects.
+- **Controller Layer**: Accepts HTTP requests, parses and delegates to services, and formats standard JSON responses with status codes.
+- **Thin Controllers**: Keeping controllers minimal (5–10 lines per handler) ensures application workflows can be unit tested without mocking HTTP request/response pipelines.
+- **Business Logic vs Validation**:
+  - *Validation (Zod)*: Structural format and syntax checks (is `startDate` an ISO date? Is `manager` a 24-char hex string? Is `startDate <= dueDate`?).
+  - *Business Logic (Service)*: Domain rules (does the manager exist in MongoDB? Is their status `ACTIVE`? Do they possess the `ADMIN` or `PROJECT_MANAGER` role? Is the project already archived?).
+
+### Query & Data Lifecycle
+- **Pagination**: Splitting large query result sets into smaller pages using `skip = (page - 1) * limit` and `limit = N`. Prevents memory exhaustion and reduces network payloads.
+- **Search & Filtering**: Query parameters (`search`, `status`, `priority`) dynamically construct MongoDB filter queries. String search values are regex-escaped to prevent ReDoS (Regular Expression Denial of Service).
+- **Archive vs Delete (Soft Deletion)**: Hard deletion (`deleteMany`/`deleteOne`) permanently destroys historical records and causes orphan reference errors in downstream data. Soft archiving sets `status = 'ARCHIVED'` and stores an `archivedAt` timestamp, preserving audit trails while excluding archived records from active views.
+- **MongoDB Indexes**: Data structures (B-trees) that store a small portion of the collection's data set in an easily traversable form. Indexes on `code`, `status`, `manager`, and `members` drastically improve search and filter speeds from $O(N)$ collection scans to $O(\log N)$ index lookups.
+- **Unique Project Codes**: Human-readable identifiers (`PRJ-0001`, `PRJ-0002`) generated by incrementing the highest existing numerical suffix with a MongoDB `unique` index constraint to guarantee collision safety.
+- **Resource-Level Authorization**: While Role-Based Access Control checks user type globally, resource-level authorization verifies whether a specific user has permission on a specific entity instance (e.g., checking `project.manager.equals(user._id)` before allowing updates).
+
+---
+
+## 31. TOP 25 PHASE 3 INTERVIEW QUESTIONS & ANSWERS
+
+### Q1: How is a Project stored in MongoDB?
+> "A Project is stored as a document in the `projects` collection via Mongoose. It contains project metadata (`name`, `description`, `category`, `budget`, `status`, `priority`, `startDate`, `dueDate`), a unique indexed `code` (`PRJ-XXXX`), an `archivedAt` timestamp, and `ObjectId` references to the `users` collection for `manager`, `members`, and `createdBy`."
+
+### Q2: How do Projects relate to Users in your database?
+> "We implement two distinct relationships:
+> 1. A **1-to-many** relationship where `Project.manager` holds a single `User` ObjectId referencing the designated project lead.
+> 2. A **many-to-many** relationship where `Project.members` stores an array of `User` ObjectIds representing assigned team members."
+
+### Q3: Why use ObjectId references instead of embedding user data in Project?
+> "Users are shared, independent entities across the organization. If we embedded user snapshots (name, email, avatar) in every project document, updating a user's profile would require updating multiple project documents. References maintain a single source of truth and guarantee referential consistency."
+
+### Q4: What does Mongoose `populate()` do behind the scenes?
+> "`populate()` performs automated document joins. When querying `Project.findById(id).populate('manager')`, Mongoose inspects the `ref: 'User'` schema declaration, executes a secondary `User.find({ _id: { $in: [...] } })` query, and substitutes the raw ObjectId with the resolved User document."
+
+### Q5: Why not duplicate user data inside Project documents?
+> "Duplication introduces data redundancy and update anomalies. If user Vikram changes his email or avatar, any project document with duplicated data becomes stale. Referencing user IDs ensures that whenever projects are fetched, `populate()` retrieves fresh, synchronized user data."
+
+### Q6: How do you prevent duplicate members in a project?
+> "We enforce deduplication at two levels: in the service layer when creating a project, member IDs are converted into a `Set` before saving. When adding a member via `POST /api/projects/:id/members`, the service checks `project.members.includes(userId)` and throws an `ApiError.conflict('User is already a member')` (HTTP 409)."
+
+### Q7: How do you verify that a manager exists and is valid?
+> "Before persisting a project, `projectService` queries `userRepository.findById(managerId)`. It verifies three conditions: first, the user exists in MongoDB; second, their `status === 'ACTIVE'`; third, their role is either `ADMIN` or `PROJECT_MANAGER`. If any check fails, it throws an `ApiError.badRequest()` (HTTP 400)."
+
+### Q8: How do you prevent Team Members from creating projects?
+> "We enforce server-side RBAC in `projectService.createProject`: if `user.role === 'TEAM_MEMBER'`, the service throws an `ApiError.forbidden('Team members are not permitted to create projects')` (HTTP 403). Frontend button hiding is purely for user experience."
+
+### Q9: How does Project Manager authorization work?
+> "Project Managers can only update, archive, or manage members of projects they personally lead (`project.manager.equals(user._id)`). When listing projects, Project Managers only see projects they manage or are members of (`$or: [{ manager: user._id }, { members: user._id }]`)."
+
+### Q10: What is the difference between role-based and resource-based authorization?
+> "- **Role-based authorization (RBAC)**: Checks permissions based solely on user role (e.g., only `ADMIN` can access user management).
+> - **Resource-based authorization**: Checks permissions against the specific record being operated on (e.g., PM Priya can update Project Alpha because she is its manager, but cannot update Project Beta managed by Rajesh)."
+
+### Q11: How do you generate unique project codes?
+> "We use an atomic suffix generator: `projectRepository.findHighestCodeNumber()` searches for the highest existing `PRJ-(\d+)` pattern using indexed regex, increments the counter, and pads it to 4 digits (`PRJ-0001`, `PRJ-0002`). A database-level `unique: true` index on `code` guarantees collision safety."
+
+### Q12: Why archive projects instead of deleting them?
+> "Hard deleting projects destroys audit history and breaks relational integrity with tasks, activities, and logs. Archiving sets `status = 'ARCHIVED'` and records `archivedAt = new Date()`. The project is hidden from default listings but remains accessible for audits or restoration."
+
+### Q13: How does project search work?
+> "The client sends a query parameter `GET /api/projects?search=devops`. In `projectService`, the search term is escaped against special regex characters to prevent ReDoS, and matched case-insensitively against `name` and `code` using `{ $or: [{ name: { $regex: escaped, $options: 'i' } }, { code: { $regex: escaped, $options: 'i' } }] }`."
+
+### Q14: How does pagination work?
+> "The client requests `page` and `limit`. The repository calculates `skip = (page - 1) * limit` and passes it to Mongoose `.skip(skip).limit(limit)`. In parallel, `countDocuments(filter)` counts total matching records, returning metadata: `{ page, limit, total, pages }`."
+
+### Q15: Why is pagination important for enterprise APIs?
+> "Without pagination, a query on thousands of projects transfers megabytes of JSON over the network, spikes Node.js event-loop memory, and slows down database query execution. Pagination guarantees predictable, sub-100ms response times and constant memory footprints."
+
+### Q16: What is a database index?
+> "An index is a specialized data structure (typically a B-tree in MongoDB) that stores a sorted copy of specific document fields alongside pointers to the full document. It allows the database engine to find matching documents in $O(\log N)$ time rather than performing an expensive $O(N)$ full collection scan."
+
+### Q17: What is a unique index?
+> "A unique index ensures that indexed fields do not store duplicate values across documents. In our Project model, `code: { type: String, unique: true, index: true }` enforces uniqueness at the database engine level, rejecting duplicate code insertions with error code 11000."
+
+### Q18: What is the difference between a controller and a service?
+> "- **Controller**: Translates HTTP requests (extracts `req.body`, `req.params`, `req.cookies`), calls service methods, and sends HTTP status codes and JSON.
+> - **Service**: Houses business rules, cross-entity validations, database queries, and role checks independent of transport protocols."
+
+### Q19: What is the difference between a service and a repository?
+> "- **Service**: Contains business logic and orchestrates workflows across multiple models (e.g., verifying user status before creating a project).
+> - **Repository**: Encapsulates direct database queries (e.g., `Project.findById()`, `Project.create()`). This allows switching databases without rewriting business logic."
+
+### Q20: Why keep controllers thin?
+> "Thin controllers contain zero business logic. This makes the code modular, prevents duplicate code across routes, and allows developers to test business logic through service unit tests without needing mock Express request/response objects."
+
+### Q21: How do you validate MongoDB IDs before database lookup?
+> "We use **Zod** schema validation: `z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid MongoDB ObjectId')`. If a client sends a malformed ID like `/api/projects/abc123`, Zod intercepts the request and returns `400 Bad Request` before Mongoose attempts a CastError."
+
+### Q22: What happens if an inactive user is assigned to a project?
+> "The service validates each assigned member and manager: if `user.status !== 'ACTIVE'`, the API immediately rejects the request with HTTP `400 Bad Request` and message `'Cannot add an inactive user to the project'`, preventing orphaned workloads."
+
+### Q23: How do you prevent invalid project date ranges?
+> "We implement date validation at two boundaries: Zod verifies `startDate` and `dueDate` are parseable ISO strings and enforces `startDate <= dueDate` using `.refine()`. The service layer re-verifies this rule during project updates."
+
+### Q24: Why are Tasks still mock in Phase 3?
+> "We follow strict phase boundaries. Migrating both Projects and Tasks simultaneously introduces high regression risks with relational joins, progress calculations, and dependency DAG algorithms. Phase 3 isolated and verified Project and Team persistence. Phase 4 will migrate Tasks cleanly."
+
+### Q25: Explain the end-to-end Phase 3 architecture.
+> "A user interacts with React Project components. `apiService.js` sends credentialed requests to Express routes. `authenticate` verifies the JWT HttpOnly cookie, Zod validates the payload, and `projectService` enforces RBAC and manager/member rules. `projectRepository` executes Mongoose queries with `.populate()` on MongoDB. Sanitized project JSON is returned to `ProjectContext`, updating the UI instantly."
+
 

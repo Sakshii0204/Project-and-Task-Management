@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/apiService';
 import { mockUsers } from '../data/mockUsers';
 import { mockProjects } from '../data/mockProjects';
@@ -22,29 +22,47 @@ export function ProjectProvider({ children }) {
   const [tasks, setTasks] = useState(() => getInitialStorage('ptms_tasks', mockTasks));
   const [activities, setActivities] = useState(() => getInitialStorage('ptms_activities', mockActivities));
   const [users, setUsers] = useState(() => getInitialStorage('ptms_users', mockUsers));
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Sync users with live backend MongoDB users when available
-  useEffect(() => {
-    let isMounted = true;
-    apiService.getUsers().then((fetched) => {
-      if (isMounted && Array.isArray(fetched) && fetched.length > 0) {
-        setUsers(fetched);
+  // Load real projects and users from MongoDB backend on mount
+  const refreshProjects = useCallback(async () => {
+    try {
+      const [fetchedProjects, fetchedUsers] = await Promise.all([
+        apiService.getProjects(),
+        apiService.getUsers(),
+      ]);
+      if (Array.isArray(fetchedProjects)) {
+        setProjects(fetchedProjects);
       }
-    }).catch(() => {});
-    return () => {
-      isMounted = false;
-    };
+      if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+        setUsers(fetchedUsers);
+      }
+    } catch (e) {
+      console.warn('Initial project/user load fallback:', e);
+    }
   }, []);
 
-  // Project CRUD
+  useEffect(() => {
+    let active = true;
+    Promise.resolve().then(async () => {
+      if (!active) return;
+      setLoading(true);
+      await refreshProjects();
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [refreshProjects]);
+
+  // Project CRUD with real backend API
   const addProject = async (projectData, creator) => {
     const created = await apiService.createProject(projectData);
     setProjects((prev) => [created, ...prev]);
 
     await logActivity({
       type: 'PROJECT_CREATED',
-      userId: creator?.id || 'user-admin',
+      userId: creator?.id || 'admin',
       userName: creator?.name || 'Administrator',
       userAvatar: creator?.avatar || '',
       action: 'created new project workspace',
@@ -62,7 +80,7 @@ export function ProjectProvider({ children }) {
 
     if (updates.name) {
       setTasks((prev) =>
-        prev.map((t) => (t.projectId === id ? { ...t, projectName: updates.name } : t))
+        prev.map((t) => (t.projectId === id || t.projectId === updated.legacyId ? { ...t, projectName: updates.name } : t))
       );
     }
 
@@ -82,16 +100,57 @@ export function ProjectProvider({ children }) {
     return updated;
   };
 
-  const deleteProject = async (id) => {
-    await apiService.deleteProject(id);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    setTasks((prev) => prev.filter((t) => t.projectId !== id));
-    return true;
+  const updateProjectStatus = async (id, status, modifier) => {
+    const updated = await apiService.updateProjectStatus(id, status);
+    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+
+    if (modifier) {
+      await logActivity({
+        type: 'PROJECT_STATUS_CHANGED',
+        userId: modifier.id,
+        userName: modifier.name,
+        userAvatar: modifier.avatar || '',
+        action: `updated project status to ${status}`,
+        target: updated.name,
+        projectName: updated.name,
+        projectId: updated.id,
+      });
+    }
+
+    return updated;
   };
 
-  // Task CRUD
+  const archiveProject = async (id) => {
+    const archived = await apiService.archiveProject(id);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    return archived;
+  };
+
+  const deleteProject = async (id) => {
+    return archiveProject(id);
+  };
+
+  const addProjectMember = async (id, userId) => {
+    const updated = await apiService.addProjectMember(id, userId);
+    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    return updated;
+  };
+
+  const removeProjectMember = async (id, userId) => {
+    const updated = await apiService.removeProjectMember(id, userId);
+    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    return updated;
+  };
+
+  const changeProjectManager = async (id, managerId) => {
+    const updated = await apiService.changeProjectManager(id, managerId);
+    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    return updated;
+  };
+
+  // Task CRUD (Preserved Phase 1 Mock / localStorage engine)
   const addTask = async (taskData, creator) => {
-    const project = projects.find((p) => p.id === taskData.projectId);
+    const project = projects.find((p) => p.id === taskData.projectId || p.legacyId === taskData.projectId);
     const assignee = users.find((u) => u.id === taskData.assigneeId);
 
     const enriched = {
@@ -106,7 +165,7 @@ export function ProjectProvider({ children }) {
 
     await logActivity({
       type: 'TASK_CREATED',
-      userId: creator?.id || 'user-pm',
+      userId: creator?.id || 'pm',
       userName: creator?.name || 'Project Manager',
       userAvatar: creator?.avatar || '',
       action: `created task and assigned to ${enriched.assigneeName}`,
@@ -125,7 +184,7 @@ export function ProjectProvider({ children }) {
 
     let enriched = { ...updates };
     if (updates.projectId) {
-      const proj = projects.find((p) => p.id === updates.projectId);
+      const proj = projects.find((p) => p.id === updates.projectId || p.legacyId === updates.projectId);
       if (proj) enriched.projectName = proj.name;
     }
     if (updates.assigneeId) {
@@ -141,11 +200,11 @@ export function ProjectProvider({ children }) {
 
     if (modifier && updates.status && updates.status !== existing.status) {
       await logActivity({
-        type: updates.status === 'Completed' ? 'TASK_COMPLETED' : 'STATUS_CHANGED',
+        type: 'TASK_STATUS_CHANGED',
         userId: modifier.id,
         userName: modifier.name,
         userAvatar: modifier.avatar || '',
-        action: updates.status === 'Completed' ? 'marked as completed' : `changed status to ${updates.status}`,
+        action: `updated status of "${updated.title}" to ${updates.status}`,
         target: updated.title,
         projectName: updated.projectName,
         projectId: updated.projectId,
@@ -162,22 +221,32 @@ export function ProjectProvider({ children }) {
     return true;
   };
 
+  // Activity Audit Log
   const logActivity = async (activityData) => {
-    const newAct = await apiService.logActivity(activityData);
-    setActivities((prev) => [newAct, ...prev.slice(0, 19)]);
+    const logged = await apiService.logActivity(activityData);
+    setActivities((prev) => [logged, ...prev.slice(0, 49)]);
+    return logged;
   };
 
   const resetAllData = () => {
-    apiService.resetAll();
-    setProjects(mockProjects);
+    localStorage.removeItem('ptms_projects');
+    localStorage.removeItem('ptms_tasks');
+    localStorage.removeItem('ptms_activities');
+    refreshProjects();
     setTasks(mockTasks);
     setActivities(mockActivities);
-    setUsers(mockUsers);
   };
 
-  // Selectors & Calculations
+  // Project Task Resolver with backward compatibility for Phase 1 mock tasks
   const getProjectTasks = (projectId) => {
-    return tasks.filter((t) => t.projectId === projectId);
+    const project = projects.find((p) => p.id === projectId || p._id === projectId || p.legacyId === projectId);
+    return tasks.filter((t) => {
+      if (t.projectId === projectId) return true;
+      if (project?.legacyId && t.projectId === project.legacyId) return true;
+      if (project?.id && t.projectId === project.id) return true;
+      if (project?.name && t.projectName && t.projectName.toLowerCase() === project.name.toLowerCase()) return true;
+      return false;
+    });
   };
 
   const getUserTasks = (userId) => {
@@ -197,7 +266,7 @@ export function ProjectProvider({ children }) {
 
   const getOverallStats = () => {
     const totalProjects = projects.length;
-    const activeProjects = projects.filter((p) => p.status === 'Active').length;
+    const activeProjects = projects.filter((p) => p.status === 'Active' || p.rawStatus === 'ACTIVE').length;
     const taskStats = getProjectTaskStatistics(tasks);
 
     return {
@@ -218,9 +287,15 @@ export function ProjectProvider({ children }) {
     activities,
     users,
     loading,
+    refreshProjects,
     addProject,
     updateProject,
+    updateProjectStatus,
+    archiveProject,
     deleteProject,
+    addProjectMember,
+    removeProjectMember,
+    changeProjectManager,
     addTask,
     updateTask,
     deleteTask,

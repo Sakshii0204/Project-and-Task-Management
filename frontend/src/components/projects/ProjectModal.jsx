@@ -87,7 +87,15 @@ function ProjectModalContent({
     }
   };
 
-  const managerOptions = users.map((u) => ({
+  const eligibleManagers = users.filter(
+    (u) =>
+      u.role === 'Admin' ||
+      u.role === 'Project Manager' ||
+      u.rawRole === 'ADMIN' ||
+      u.rawRole === 'PROJECT_MANAGER'
+  );
+
+  const managerOptions = (eligibleManagers.length > 0 ? eligibleManagers : users).map((u) => ({
     value: u.id,
     label: `${u.name} (${u.role})`,
   }));

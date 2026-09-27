@@ -256,14 +256,95 @@ graph TD
 
 ---
 
-## Phase Boundary & Data Compatibility (Phase 2 -> Phase 3)
+## Phase Boundary & Data Compatibility (Phase 2 & Phase 3 Status)
 
-| Domain | Phase 1 Status | Phase 2 Status | Phase 3 Roadmap |
-| :--- | :--- | :--- | :--- |
-| **Authentication** | Mock (in-memory) | **Real (JWT + HttpOnly Cookie)** | Real + Multi-factor / Refresh tokens |
-| **User Management** | Mock users list | **Real (MongoDB User Model)** | Real + Profile pictures upload |
-| **RBAC** | Frontend-only UX switcher | **Server-side Enforced Boundary** | Fine-grained workspace permissions |
-| **Projects** | Mock / localStorage | **Mock / localStorage (Strict)** | MongoDB Project Model & REST API |
-| **Tasks** | Mock / localStorage | **Mock / localStorage (Strict)** | MongoDB Task Model & REST API |
-| **Dependencies** | Client-side DAG check | **Client-side DAG check** | Backend dependency cycle detection |
+| Domain | Phase 1 Status | Phase 2 Status | Phase 3 Status | Phase 4 Roadmap |
+| :--- | :--- | :--- | :--- | :--- |
+| **Authentication** | Mock (in-memory) | **Real (JWT + HttpOnly Cookie)** | **Real (JWT + HttpOnly Cookie)** | Refresh Tokens / 2FA |
+| **User Management** | Mock users list | **Real (MongoDB User Model)** | **Real (MongoDB User Model)** | Profile Picture Uploads |
+| **RBAC** | Frontend-only UX switcher | **Server-side Enforced Boundary** | **Resource-level Authorization** | Workspace Role Customization |
+| **Projects** | Mock / localStorage | Mock / localStorage | **Real (MongoDB Project Model)** | Project Templates |
+| **Tasks** | Mock / localStorage | Mock / localStorage | **Mock / localStorage (Strict)** | MongoDB Task Model & REST API |
+| **Dependencies** | Client-side DAG check | Client-side DAG check | **Client-side DAG check** | Backend Topological Sort / Cycle Check |
+
+---
+
+## Phase 3: Project & Team Management Architecture
+
+Phase 3 transitions project management into the real MongoDB database while maintaining strict phase isolation for tasks.
+
+### Entity Relationship Model
+
+```mermaid
+erDiagram
+    USER ||--o{ PROJECT : "manages (1-to-many)"
+    USER }o--o{ PROJECT : "member of (many-to-many)"
+    USER ||--o{ PROJECT : "createdBy"
+
+    USER {
+        ObjectId _id PK
+        string name
+        string email UK
+        string role "ADMIN | PROJECT_MANAGER | TEAM_MEMBER"
+        string department
+        string status "ACTIVE | INACTIVE"
+    }
+
+    PROJECT {
+        ObjectId _id PK
+        string name
+        string code UK "PRJ-XXXX"
+        string description
+        ObjectId manager FK "ref: User"
+        Array members FK "ref: User"
+        string status "PLANNING | ACTIVE | ON_HOLD | COMPLETED | ARCHIVED"
+        string priority "LOW | MEDIUM | HIGH | CRITICAL"
+        string category
+        string budget
+        Date startDate
+        Date dueDate
+        ObjectId createdBy FK "ref: User"
+        Date archivedAt
+    }
+```
+
+### Relationship Design & Mongoose Populate Strategy
+1. **Manager Reference (`Project.manager`)**:
+   - Single `ObjectId` referencing `User` model.
+   - Enforces that assigned user must have role `ADMIN` or `PROJECT_MANAGER` and be `ACTIVE`.
+   - Populated with safe user fields: `_id name email role avatar department`.
+2. **Team Members (`Project.members`)**:
+   - Array of `ObjectId` references to `User` model.
+   - Manager is always guaranteed inclusion in this array.
+   - Populated dynamically via `.populate('members', '_id name email role avatar department')`.
+3. **Audit Tracking (`Project.createdBy`)**:
+   - Populated from the authenticated session user (`req.user._id`).
+4. **Why Document References instead of Embedding**:
+   - Users are first-class organizational entities whose names, roles, avatars, and departments change over time. Storing `ObjectId` references ensures profile updates propagate instantly across all projects without writing updates to multiple project documents.
+   - Avoids BSON document size bloat and ensures referential consistency.
+
+---
+
+### Resource-Level Authorization Flow
+
+```mermaid
+graph TD
+    Req[Incoming HTTP Request] --> Auth[authenticate Middleware]
+    Auth --> UserHydrated[req.user Attached from DB]
+    UserHydrated --> Router[project.routes.js]
+    Router --> Controller[project.controller.js]
+    Controller --> Service[project.service.js]
+    
+    Service --> CheckRole{User Role?}
+    CheckRole -->|ADMIN| GrantAdmin[Unrestricted Access]
+    CheckRole -->|PROJECT_MANAGER| CheckPM{Is Manager or Member?}
+    CheckRole -->|TEAM_MEMBER| CheckMember{Is Member?}
+    
+    CheckPM -->|Yes| GrantPM[Permitted for Managed Work]
+    CheckPM -->|No| DenyPM[403 Forbidden]
+    
+    CheckMember -->|Yes| GrantTM[Read Only Permission]
+    CheckMember -->|No / Tries Mutation| DenyTM[403 Forbidden]
+```
+
 

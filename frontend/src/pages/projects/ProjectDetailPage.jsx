@@ -35,13 +35,14 @@ export function ProjectDetailPage() {
     deleteProject,
     addTask,
     getProjectStats,
+    getProjectTasks,
   } = useProjects();
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const project = projects.find((p) => p.id === id);
+  const project = projects.find((p) => p.id === id || p._id === id || p.legacyId === id);
 
   if (!project) {
     return (
@@ -59,9 +60,12 @@ export function ProjectDetailPage() {
     );
   }
 
-  const projectTasks = tasks.filter((t) => t.projectId === project.id);
+  const projectTasks = getProjectTasks(project.id);
   const stats = getProjectStats(project.id);
-  const teamMembers = users.filter((u) => project.teamMemberIds?.includes(u.id));
+  const teamMembers =
+    project.members && project.members.length > 0 && typeof project.members[0] === 'object'
+      ? project.members
+      : users.filter((u) => project.teamMemberIds?.includes(u.id));
 
   const handleEditSave = async (updatedData) => {
     await updateProject(project.id, updatedData, currentUser);

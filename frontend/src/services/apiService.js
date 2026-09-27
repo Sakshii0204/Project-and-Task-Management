@@ -1,7 +1,11 @@
 /**
- * API Service Layer (Phase 2)
- * Connects Authentication and User management to Express + MongoDB backend via credentials/HttpOnly cookies.
- * STRICT PHASE 2 BOUNDARY: Projects, Tasks, and Activities remain mock/localStorage-driven.
+ * API Service Layer (Phase 3)
+ * Connects Authentication, User Management, and Project Management to Express + MongoDB backend.
+ * Uses credentials: 'include' for HttpOnly cookie session handling.
+ *
+ * STRICT PHASE BOUNDARY:
+ * Users & Projects -> Real Express + MongoDB Backend
+ * Tasks & Activities -> Preserved Phase 1 Mock / localStorage engine (Migrating in Phase 4)
  */
 
 import { mockUsers } from '../data/mockUsers';
@@ -33,7 +37,8 @@ async function request(endpoint, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMsg = data?.message || data?.errors?.[0]?.message || `Request failed with status ${response.status}`;
+    const errorMsg =
+      data?.message || data?.errors?.[0]?.message || `Request failed with status ${response.status}`;
     const err = new Error(errorMsg);
     err.status = response.status;
     err.data = data;
@@ -62,7 +67,67 @@ export function normalizeUser(user) {
   };
 }
 
-// Local storage helpers for Phase 2 mock project & task data
+// Normalize MongoDB project object to ensure frontend compatibility
+export function normalizeProject(project) {
+  if (!project) return null;
+
+  const statusMapping = {
+    PLANNING: 'Planning',
+    ACTIVE: 'Active',
+    ON_HOLD: 'On Hold',
+    COMPLETED: 'Completed',
+    ARCHIVED: 'Archived',
+  };
+
+  const priorityMapping = {
+    LOW: 'Low',
+    MEDIUM: 'Medium',
+    HIGH: 'High',
+    CRITICAL: 'Critical',
+  };
+
+  const managerId = project.manager?._id || project.manager || project.managerId || '';
+  const managerName = project.manager?.name || project.managerName || 'Unassigned';
+  const members = project.members || [];
+  const teamMemberIds = members.map((m) => (m?._id ? m._id.toString() : m.toString()));
+
+  // Deterministic mock task compatibility mapping for seeded projects
+  const codeToLegacyId = {
+    'PRJ-0001': 'proj-1',
+    'PRJ-0002': 'proj-2',
+    'PRJ-0003': 'proj-3',
+    'PRJ-0004': 'proj-4',
+    'PRJ-0005': 'proj-5',
+    'ECM-2026': 'proj-1',
+    'EPG-2026': 'proj-2',
+    'HRM-2026': 'proj-3',
+    'CAE-2026': 'proj-4',
+    'MBA-2026': 'proj-5',
+  };
+
+  const legacyId = codeToLegacyId[project.code] || null;
+
+  return {
+    ...project,
+    id: project._id ? project._id.toString() : project.id,
+    _id: project._id ? project._id.toString() : project.id,
+    legacyId,
+    status: statusMapping[project.status] || project.status,
+    rawStatus: project.status,
+    priority: priorityMapping[project.priority] || project.priority,
+    rawPriority: project.priority,
+    managerId: managerId ? managerId.toString() : '',
+    managerName,
+    members: members.map(normalizeUser),
+    teamMemberIds,
+    category: project.category || 'General',
+    budget: project.budget || '',
+    startDate: project.startDate ? new Date(project.startDate).toISOString().slice(0, 10) : '',
+    dueDate: project.dueDate ? new Date(project.dueDate).toISOString().slice(0, 10) : '',
+  };
+}
+
+// Local storage helpers for mock task data
 function getStoredData(key, fallback) {
   try {
     const item = localStorage.getItem(key);
@@ -114,8 +179,7 @@ export const apiService = {
       const dbUsers = response.data?.users || [];
       return dbUsers.map(normalizeUser);
     } catch {
-      // Graceful fallback for components if unauthenticated or offline
-      return mockUsers;
+      return mockUsers.map(normalizeUser);
     }
   },
 
@@ -144,48 +208,127 @@ export const apiService = {
   },
 
   // ==========================================
-  // PHASE 1 PRESERVED: Mock Projects & Tasks
-  // (Migrating to backend in Phase 3/4)
+  // REAL BACKEND API: Projects (Phase 3)
   // ==========================================
 
-  async getProjects() {
-    return getStoredData(STORAGE_KEYS.PROJECTS, mockProjects);
+  async getProjects(params = {}) {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.search) queryParams.set('search', params.search);
+      if (params.status) queryParams.set('status', params.status);
+      if (params.priority) queryParams.set('priority', params.priority);
+      if (params.page) queryParams.set('page', params.page);
+      if (params.limit) queryParams.set('limit', params.limit);
+      if (params.includeArchived) queryParams.set('includeArchived', 'true');
+
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const response = await request(`/projects${queryString}`, {
+        method: 'GET',
+      });
+      const rawProjects = response.data?.projects || [];
+      const normalized = rawProjects.map(normalizeProject);
+      setStoredData(STORAGE_KEYS.PROJECTS, normalized);
+      return normalized;
+    } catch (err) {
+      console.warn('Backend /projects fetch fallback:', err.message);
+      return getStoredData(STORAGE_KEYS.PROJECTS, mockProjects).map(normalizeProject);
+    }
   },
 
   async getProjectById(id) {
-    const projects = getStoredData(STORAGE_KEYS.PROJECTS, mockProjects);
-    return projects.find((p) => p.id === id) || null;
+    try {
+      const response = await request(`/projects/${id}`, {
+        method: 'GET',
+      });
+      return normalizeProject(response.data?.project);
+    } catch {
+      const cached = getStoredData(STORAGE_KEYS.PROJECTS, mockProjects);
+      const found = cached.find((p) => p.id === id || p.legacyId === id);
+      return found ? normalizeProject(found) : null;
+    }
   },
 
   async createProject(projectData) {
-    const projects = getStoredData(STORAGE_KEYS.PROJECTS, mockProjects);
-    const newProject = {
-      ...projectData,
-      id: `proj-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+    const payload = {
+      name: projectData.name,
+      description: projectData.description || '',
+      category: projectData.category || 'General',
+      budget: projectData.budget || '',
+      manager: projectData.managerId || projectData.manager,
+      members: projectData.teamMemberIds || projectData.members || [],
+      priority: (projectData.priority || 'MEDIUM').toUpperCase(),
+      status: (projectData.status || 'PLANNING').toUpperCase().replace(' ', '_'),
+      startDate: projectData.startDate,
+      dueDate: projectData.dueDate,
     };
-    const updated = [newProject, ...projects];
-    setStoredData(STORAGE_KEYS.PROJECTS, updated);
-    return newProject;
+    if (projectData.code) payload.code = projectData.code;
+
+    const response = await request('/projects', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return normalizeProject(response.data?.project);
   },
 
   async updateProject(id, updates) {
-    const projects = getStoredData(STORAGE_KEYS.PROJECTS, mockProjects);
-    const index = projects.findIndex((p) => p.id === id);
-    if (index !== -1) {
-      projects[index] = { ...projects[index], ...updates };
-      setStoredData(STORAGE_KEYS.PROJECTS, projects);
-      return projects[index];
-    }
-    throw new Error('Project not found');
+    const payload = { ...updates };
+    if (updates.priority) payload.priority = updates.priority.toUpperCase();
+    if (updates.status) payload.status = updates.status.toUpperCase().replace(' ', '_');
+    if (updates.managerId) payload.manager = updates.managerId;
+
+    const response = await request(`/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return normalizeProject(response.data?.project);
+  },
+
+  async updateProjectStatus(id, status) {
+    const response = await request(`/projects/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: status.toUpperCase().replace(' ', '_') }),
+    });
+    return normalizeProject(response.data?.project);
+  },
+
+  async archiveProject(id) {
+    const response = await request(`/projects/${id}/archive`, {
+      method: 'PATCH',
+    });
+    return normalizeProject(response.data?.project);
+  },
+
+  async addProjectMember(id, userId) {
+    const response = await request(`/projects/${id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+    return normalizeProject(response.data?.project);
+  },
+
+  async removeProjectMember(id, userId) {
+    const response = await request(`/projects/${id}/members/${userId}`, {
+      method: 'DELETE',
+    });
+    return normalizeProject(response.data?.project);
+  },
+
+  async changeProjectManager(id, manager) {
+    const response = await request(`/projects/${id}/manager`, {
+      method: 'PATCH',
+      body: JSON.stringify({ manager }),
+    });
+    return normalizeProject(response.data?.project);
   },
 
   async deleteProject(id) {
-    const projects = getStoredData(STORAGE_KEYS.PROJECTS, mockProjects);
-    const updated = projects.filter((p) => p.id !== id);
-    setStoredData(STORAGE_KEYS.PROJECTS, updated);
-    return true;
+    return this.archiveProject(id);
   },
+
+  // ==========================================
+  // PHASE 1 PRESERVED: Mock Tasks & Activities
+  // (Migrating to backend in Phase 4)
+  // ==========================================
 
   async getTasks() {
     return getStoredData(STORAGE_KEYS.TASKS, mockTasks);
@@ -230,22 +373,15 @@ export const apiService = {
     return getStoredData(STORAGE_KEYS.ACTIVITIES, mockActivities);
   },
 
-  async logActivity(activity) {
+  async logActivity(activityData) {
     const activities = getStoredData(STORAGE_KEYS.ACTIVITIES, mockActivities);
     const newActivity = {
-      ...activity,
+      ...activityData,
       id: `act-${Date.now()}`,
       timestamp: new Date().toISOString(),
     };
-    const updated = [newActivity, ...activities.slice(0, 19)];
+    const updated = [newActivity, ...activities.slice(0, 49)];
     setStoredData(STORAGE_KEYS.ACTIVITIES, updated);
     return newActivity;
-  },
-
-  resetAll() {
-    localStorage.removeItem(STORAGE_KEYS.PROJECTS);
-    localStorage.removeItem(STORAGE_KEYS.TASKS);
-    localStorage.removeItem(STORAGE_KEYS.ACTIVITIES);
-    return true;
   },
 };

@@ -6,8 +6,18 @@ A production-grade, business-oriented Project & Task Management web platform bui
 | :--- | :--- | :--- |
 | **Phase 1: Frontend Foundation** | **COMPLETE** | React 19, Vite, responsive UI, executive KPI dashboard, dynamic progress & overdue engines, task dependency matrix |
 | **Phase 2: Backend, Real Auth & RBAC** | **COMPLETE** | Node.js, Express, MongoDB, Mongoose, JWT in HttpOnly cookies, bcrypt hashing, server-side RBAC, Zod validation |
-| **Phase 3: Database Projects & Tasks** | *Pending Approval* | Migration of Projects, Tasks, and Dependencies to MongoDB models and REST CRUD |
-| **Phase 4: Real-time & Collaboration** | *Upcoming* | Socket.IO live notifications, team activity streams, export reports |
+| **Phase 3: Real Database Projects & Teams**| **COMPLETE** | MongoDB Project schema, Mongoose relationships (`ObjectId`), manager & team membership, resource-level RBAC, code generator (`PRJ-XXXX`), archive workflow |
+| **Phase 4: Database Tasks & Engine** | *Upcoming* | Mongoose Task schema, real task dependencies (DAG), dynamic progress calculation, assignment engine |
+| **Phase 5: Real-time & Collaboration** | *Upcoming* | Socket.IO live notifications, team activity streams, export reports |
+
+---
+
+## 📌 Current Persistence Architecture
+- **Users**: **MongoDB Database** (Mongoose `User` model, bcrypt password hash)
+- **Authentication**: **Backend API** (Signed JWT in `HttpOnly` cookie, session restoration via `/api/auth/me`)
+- **Authorization**: **Server-Side RBAC & Resource-Level Security** (`ADMIN`, `PROJECT_MANAGER`, `TEAM_MEMBER`)
+- **Projects**: **MongoDB Database** (Mongoose `Project` model, manager & member `ObjectId` references)
+- **Tasks**: **Phase 1 Mock Engine / localStorage** (Strict Phase 3 boundary; migrating to MongoDB in Phase 4)
 
 ---
 
@@ -26,7 +36,7 @@ Enterprises face severe delivery bottlenecks due to scattered communications, un
 ### Frontend
 - **Framework**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
 - **Routing**: [React Router DOM v7](https://reactrouter.com/)
-- **State Management**: React Context API (`AuthContext`, `ProjectContext`) + localStorage mock synchronization
+- **State Management**: React Context API (`AuthContext`, `ProjectContext`) + localStorage mock task synchronization
 - **Icons**: [Lucide React](https://lucide.dev/)
 - **Styling**: Vanilla CSS Design Tokens (accessible, responsive, zero-framework bloat)
 
@@ -35,7 +45,7 @@ Enterprises face severe delivery bottlenecks due to scattered communications, un
 - **Database**: [MongoDB](https://www.mongodb.com/) via [Mongoose ODM](https://mongoosejs.com/)
 - **Authentication**: Signed JSON Web Tokens (JWT) stored in `HttpOnly` browser cookies
 - **Password Security**: [bcryptjs](https://www.npmjs.com/package/bcryptjs) with 10 salt rounds
-- **Validation**: [Zod](https://zod.dev/) request body and parameter validation
+- **Validation**: [Zod](https://zod.dev/) request body, query, and parameter validation
 - **Security Middleware**: [Helmet](https://helmetjs.github.io/), [CORS](https://www.npmjs.com/package/cors) (credentials enabled), [express-rate-limit](https://www.npmjs.com/package/express-rate-limit), [cookie-parser](https://www.npmjs.com/package/cookie-parser)
 - **Testing**: [Vitest](https://vitest.dev/) + [Supertest](https://www.npmjs.com/package/supertest)
 
@@ -64,7 +74,7 @@ npm install
 # Create environment file from template
 cp .env.example .env
 
-# Seed MongoDB with initial demo accounts
+# Seed MongoDB with initial demo accounts and projects
 npm run seed
 
 # Run backend development server (starts on http://localhost:5000)
@@ -116,11 +126,38 @@ The login screen features one-click autofill buttons mapped to real accounts see
 
 | Role | Name | Email | Seed Password | Capabilities |
 | :--- | :--- | :--- | :--- | :--- |
-| **Admin** | Rajesh Verma | `admin@thinqloud.com` | `AdminPassword123!` | Full user management, workspace administration, all-team oversight |
-| **Project Manager** | Priya Sundaram | `pm@thinqloud.com` | `ManagerPassword123!` | Project management, milestone planning, team user directory view |
-| **Team Member** | Vikram Malhotra | `dev@thinqloud.com` | `DevPassword123!` | Personal workspace (`My Tasks`), task status & progress updates |
-| **Team Member** | Amit Deshmukh | `amit.d@thinqloud.com` | `DevPassword123!` | Engineering task execution |
-| **Team Member** | Neha Varma | `neha.v@thinqloud.com` | `DevPassword123!` | Design & QA task execution |
+| **Admin** | Rajesh Kulkarni | `admin@thinqloud.com` | `AdminPassword123!` | Full user & project administration, manager reassignment, system oversight |
+| **Project Manager** | Priya Sundaram | `pm@thinqloud.com` | `ManagerPassword123!` | Project management, member assignments, status updates, team directory view |
+| **Team Member** | Sakshi Sharma | `dev@thinqloud.com` | `DevPassword123!` | Personal workspace (`My Tasks`), task status & progress updates |
+| **Team Member** | Amit Deshmukh | `amit.d@thinqloud.com` | `DevPassword123!` | Core engineering task execution |
+| **Team Member** | Neha Verma | `neha.v@thinqloud.com` | `DevPassword123!` | Experience design task execution |
+
+---
+
+## 📡 REST API Reference
+
+### Authentication (`/api/auth`)
+- `POST /api/auth/login`: Authenticate with email/password and set HttpOnly session cookie
+- `GET /api/auth/me`: Restore active session from cookie
+- `POST /api/auth/logout`: Clear authentication cookie
+
+### User Management (`/api/users`)
+- `GET /api/users`: List users (ADMIN, PROJECT_MANAGER)
+- `POST /api/users`: Create user (ADMIN)
+- `GET /api/users/:id`: Get user details (ADMIN, PROJECT_MANAGER)
+- `PATCH /api/users/:id`: Update user profile (ADMIN)
+- `PATCH /api/users/:id/status`: Update user status (ADMIN)
+
+### Project Management (`/api/projects`)
+- `GET /api/projects`: List projects scoped by role (Supports `search`, `status`, `priority`, `page`, `limit`)
+- `POST /api/projects`: Create project with unique code generation (ADMIN, PROJECT_MANAGER)
+- `GET /api/projects/:id`: Get project details with populated manager and members
+- `PATCH /api/projects/:id`: Update project configuration (ADMIN, Project Manager of project)
+- `PATCH /api/projects/:id/status`: Update project status (ADMIN, Project Manager of project)
+- `PATCH /api/projects/:id/archive`: Soft delete / archive project (ADMIN, Project Manager of project)
+- `POST /api/projects/:id/members`: Add member to project (ADMIN, Project Manager of project)
+- `DELETE /api/projects/:id/members/:userId`: Remove member from project (ADMIN, Project Manager of project)
+- `PATCH /api/projects/:id/manager`: Reassign project lead (ADMIN)
 
 ---
 
@@ -131,7 +168,7 @@ The login screen features one-click autofill buttons mapped to real accounts see
 cd backend
 npm test
 ```
-*Executes 18 automated integration tests covering health checks, login flows, cookie security, session restoration, RBAC route guards, duplicate user conflicts, and Zod parameter validation.*
+*Executes 44 automated integration tests covering authentication, session cookies, RBAC route guards, user operations, project creation, member assignments, manager reassignment, resource-level authorization, and archive workflows.*
 
 ### Run Frontend Lint & Build
 ```bash
@@ -142,28 +179,9 @@ npm run build
 
 ---
 
-## 🧭 System Architecture & Request Flow
-
-```
-React Frontend (Vite)
-   │
-   │ HTTP JSON (credentials: 'include')
-   ▼
-Express Server (Port 5000)
-   │
-   ├─► Security (Helmet, CORS: localhost:5173, Rate Limiting)
-   ├─► Validation (Zod schemas for bodies and ObjectId params)
-   ├─► Authentication (JWT verified from HttpOnly cookie)
-   ├─► Authorization (Server-side RBAC: ADMIN, PROJECT_MANAGER, TEAM_MEMBER)
-   │
-   ▼
-Controllers ──► Services ──► Repositories ──► Mongoose ODM ──► MongoDB
-```
-
----
-
 ## 📚 Project Documentation
 - **[docs/phase-1.md](file:///d:/Project%20and%20Task%20Management/docs/phase-1.md)**: Phase 1 deliverables, component library, and dynamic business utilities.
 - **[docs/phase-2.md](file:///d:/Project%20and%20Task%20Management/docs/phase-2.md)**: Phase 2 backend foundation, real authentication, RBAC matrix, and API contracts.
+- **[docs/phase-3.md](file:///d:/Project%20and%20Task%20Management/docs/phase-3.md)**: Phase 3 Project and Team Management implementation report, schema design, and resource authorization.
 - **[docs/architecture.md](file:///d:/Project%20and%20Task%20Management/docs/architecture.md)**: Complete system design, data flow diagrams, and layer responsibilities.
-- **[docs/PROJECT_WALKTHROUGH.md](file:///d:/Project%20and%20Task%20Management/docs/PROJECT_WALKTHROUGH.md)**: Comprehensive interview preparation guide, 30 backend & architecture Q&As, 2-minute elevator pitch, and step-by-step interview demo script.
+- **[docs/PROJECT_WALKTHROUGH.md](file:///d:/Project%20and%20Task%20Management/docs/PROJECT_WALKTHROUGH.md)**: Comprehensive interview preparation guide, 30 Phase 2 Q&As, 25 Phase 3 Q&As, updated 2-minute elevator pitch, and step-by-step interview demo script.
