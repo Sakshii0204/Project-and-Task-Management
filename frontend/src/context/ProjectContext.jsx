@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
 import { apiService } from '../services/apiService';
 import { mockActivities } from '../data/mockActivities';
 import { isTaskOverdue, calculateProjectProgress, getProjectTaskStatistics } from '../utils/taskUtils';
@@ -15,13 +16,14 @@ function getInitialStorage(key, fallback) {
 }
 
 export function ProjectProvider({ children }) {
+  const { currentUser } = useAuth();
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [activities, setActivities] = useState(() => getInitialStorage('ptms_activities', mockActivities));
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load real projects, tasks, activities, and users from MongoDB backend on mount
+  // Load real projects, tasks, activities, and users from MongoDB backend on mount or user change
   const refreshProjects = useCallback(async () => {
     try {
       const [fetchedProjects, fetchedTasks, fetchedUsers, fetchedActivities] = await Promise.all([
@@ -58,7 +60,7 @@ export function ProjectProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [refreshProjects]);
+  }, [refreshProjects, currentUser]);
 
   // Project CRUD with real backend API
   const addProject = async (projectData, creator) => {

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
+import { apiService } from '../../services/apiService';
 import { validateProjectForm } from '../../utils/validators';
 
 export function ProjectModal({
@@ -10,7 +11,7 @@ export function ProjectModal({
   onClose,
   onSave,
   project = null,
-  users = [],
+  users: initialUsers = [],
 }) {
   if (!isOpen) return null;
   return (
@@ -18,7 +19,7 @@ export function ProjectModal({
       onClose={onClose}
       onSave={onSave}
       project={project}
-      users={users}
+      initialUsers={initialUsers}
     />
   );
 }
@@ -27,9 +28,42 @@ function ProjectModalContent({
   onClose,
   onSave,
   project,
-  users,
+  initialUsers,
 }) {
   const isEdit = Boolean(project);
+
+  const [fetchedUsers, setFetchedUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(() => (!initialUsers || initialUsers.length === 0));
+  const [usersError, setUsersError] = useState(null);
+
+  const users = initialUsers && initialUsers.length > 0 ? initialUsers : fetchedUsers;
+
+  useEffect(() => {
+    let isMounted = true;
+    if (initialUsers && initialUsers.length > 0) {
+      return;
+    }
+
+    apiService
+      .getUsers()
+      .then((data) => {
+        if (isMounted) {
+          setFetchedUsers(Array.isArray(data) ? data : []);
+          setUsersLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error('Failed to load users for project modal:', err);
+          setUsersError('Unable to load users. Please try again.');
+          setUsersLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialUsers]);
 
   const [formData, setFormData] = useState(() => ({
     name: project?.name || '',
@@ -76,7 +110,9 @@ function ProjectModalContent({
 
     setSubmitting(true);
     try {
-      const selectedManager = users.find((u) => u.id === formData.managerId);
+      const selectedManager = users.find(
+        (u) => (u.id || u._id) === formData.managerId
+      );
       await onSave({
         ...formData,
         managerName: selectedManager ? selectedManager.name : 'Unknown Manager',
@@ -87,18 +123,29 @@ function ProjectModalContent({
     }
   };
 
-  const eligibleManagers = users.filter(
-    (u) =>
-      u.role === 'Admin' ||
-      u.role === 'Project Manager' ||
-      u.rawRole === 'ADMIN' ||
-      u.rawRole === 'PROJECT_MANAGER'
-  );
+  const isUserActive = (u) => {
+    const status = (u.status || '').toUpperCase();
+    return status === 'ACTIVE';
+  };
 
-  const managerOptions = (eligibleManagers.length > 0 ? eligibleManagers : users).map((u) => ({
-    value: u.id,
-    label: `${u.name} (${u.role})`,
+  const eligibleManagers = users.filter((u) => {
+    if (!isUserActive(u)) return false;
+    const r = (u.rawRole || u.role || '').toUpperCase();
+    return r === 'ADMIN' || r === 'PROJECT_MANAGER' || u.role === 'Admin' || u.role === 'Project Manager';
+  });
+
+  const activeTeamMembers = users.filter((u) => isUserActive(u));
+
+  const managerOptions = eligibleManagers.map((u) => ({
+    value: u.id || u._id,
+    label: `${u.name} — ${u.role || u.rawRole}`,
   }));
+
+  const managerPlaceholder = usersLoading
+    ? 'Loading users...'
+    : eligibleManagers.length === 0
+    ? 'No eligible project managers available.'
+    : 'Select a project lead';
 
   const statusOptions = [
     { value: 'Planning', label: 'Planning' },
@@ -115,6 +162,22 @@ function ProjectModalContent({
       maxWidth="640px"
     >
       <form onSubmit={handleSubmit}>
+        {usersError && (
+          <div
+            style={{
+              padding: '10px 14px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: 'var(--radius-md)',
+              color: '#991b1b',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}
+          >
+            {usersError}
+          </div>
+        )}
+
         <Input
           label="Project Name"
           name="name"
@@ -148,7 +211,8 @@ function ProjectModalContent({
             value={formData.managerId}
             onChange={handleChange}
             options={managerOptions}
-            placeholder="Select a project lead"
+            placeholder={managerPlaceholder}
+            disabled={usersLoading || eligibleManagers.length === 0}
             required
             error={errors.managerId}
           />
@@ -193,7 +257,8 @@ function ProjectModalContent({
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
               gap: '8px',
-              maxHeight: '130px',
+              minHeight: '48px',
+              maxHeight: '140px',
               overflowY: 'auto',
               border: '1px solid var(--border-color)',
               padding: '10px',
@@ -201,28 +266,41 @@ function ProjectModalContent({
               backgroundColor: '#f8fafc',
             }}
           >
-            {users.map((user) => (
-              <label
-                key={user.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.teamMemberIds.includes(user.id)}
-                  onChange={() => handleMemberToggle(user.id)}
-                />
-                <span>
-                  <strong>{user.name}</strong> ({user.role})
-                </span>
-              </label>
-            ))}
+            {usersLoading ? (
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                Loading users...
+              </p>
+            ) : activeTeamMembers.length === 0 ? (
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                No active team members available.
+              </p>
+            ) : (
+              activeTeamMembers.map((user) => {
+                const userId = user.id || user._id;
+                return (
+                  <label
+                    key={userId}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.teamMemberIds.includes(userId)}
+                      onChange={() => handleMemberToggle(userId)}
+                    />
+                    <span>
+                      <strong>{user.name}</strong> ({user.role || user.rawRole})
+                    </span>
+                  </label>
+                );
+              })
+            )}
           </div>
         </div>
 
