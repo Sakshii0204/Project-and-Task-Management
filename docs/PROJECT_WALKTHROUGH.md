@@ -1426,5 +1426,396 @@ When demonstrating Phase 4 to an interview panel, walk through this live executi
 > 2. Preventing blocked tasks from being marked completed while dependencies remain unresolved.
 > 3. Synchronizing status, progress, and `completedAt` across concurrent status updates without inconsistent states."
 
+---
+
+## 21. PHASE 5 — REAL DASHBOARD ANALYTICS, AUDIT TRAIL & SYSTEM HARDENING
+
+### Overview
+In Phase 5, the Project & Task Management System achieved enterprise business readiness. We added:
+1. **Real Dashboard Analytics**: `GET /api/dashboard` powered by high-performance MongoDB aggregation pipelines.
+2. **Role-Aware Metric Scoping**: Strict data partitioning for Admins (system-wide), Project Managers (managed projects), and Team Members (assigned work).
+3. **Comprehensive Audit & Activity Trail**: `Activity` model in MongoDB capturing 16 critical business lifecycle events across projects and tasks.
+4. **Targeted Deadline Visibility**: Real-time identification of tasks due in the next 7 days, excluding completed work, and sorted nearest first.
+5. **Dynamic Project Progress Integration**: Derived from actual MongoDB task progress using the Phase 4 formula: $\text{round}(\sum \text{progress} / N)$.
+6. **Frontend State & UX Polish**: Real-time dashboard KPI cards, loading skeletons, error boundaries, empty states, and responsive accessibility improvements.
+7. **Production Test Coverage**: Expanded to 89/89 passing automated tests.
+
+---
+
+### Phase 5 Pitches (30-Second, 2-Minute, and 5-Minute Technical)
+
+#### 30-Second Interview Elevator Pitch
+> *"I built the Project & Task Management System, a full-stack enterprise web platform engineered with the MERN stack. It replaces scattered spreadsheets and chats by centralizing project workspaces, task delegation, dependency DAG tracking with cycle prevention, automated overdue detection, role-aware dashboard analytics, and an immutable business audit trail. All four core entities—Users, Projects, Tasks, and Activities—are 100% database-backed in MongoDB with strict server-side RBAC and 89 automated tests."*
+
+#### 2-Minute Interview Pitch
+> *"The Project & Task Management System is an enterprise engineering management application built using MongoDB, Express, React, and Node.js. It addresses a fundamental business problem: delivery delays caused by fragmented communication, ambiguous task ownership, and untracked dependency deadlocks.*
+>
+> *We developed the project across five disciplined milestones:
+> - In **Phase 1**, we designed a responsive React frontend with executive KPI cards, modal workflows, and client state architecture.
+> - In **Phase 2**, we implemented a secure Node/Express backend with bcrypt password hashing, JWT HttpOnly authentication cookies, and server-side RBAC.
+> - In **Phase 3**, we migrated Projects to MongoDB with manager assignment, atomic collision-safe code generation, and soft archiving.
+> - In **Phase 4**, we replaced mock tasks with a database-backed Task Management Engine, featuring directed dependency graph modeling, iterative DFS cycle detection, blocked task prevention, and real-time project progress calculation.
+> - In **Phase 5**, we delivered role-aware dashboard analytics using MongoDB aggregation pipelines, an enterprise activity audit trail tracking 16 business events, deadline risk escalation, and UI/UX state hardening.
+>
+> *Every data entity—Users, Projects, Tasks, and Activities—is fully persisted in MongoDB. The architecture strictly enforces resource-level authorization on the backend, ensuring users never see or modify unauthorized workstreams. The system is verified by 89 passing automated backend tests and clean frontend production builds."*
+
+#### 5-Minute Deep-Dive Technical Explanation
+> *"The architecture follows a classic layered design pattern:
+>
+> **1. Frontend Layer (React 19 + Vite)**:
+> Built as a single-page application using React Router DOM, Vite for fast bundling, and pure Vanilla CSS variables for a dark-mode-ready, modern design system. State is managed via React Context (`AuthContext` and `ProjectContext`), with centralized HTTP communication through `apiService.js` using `credentials: 'include'` for automatic cookie transmission.
+>
+> **2. Transport & Security Middleware (Express 4)**:
+> Protected by Helmet for HTTP header security, CORS configured strictly for frontend origin with credentials, an express-rate-limit general limiter, cookie-parser, and centralized async error handling. Incoming payloads and query parameters are validated against declarative Zod schemas before reaching business logic.
+>
+> **3. Authentication & RBAC**:
+> Authentication uses bcrypt for salt-and-hash password verification and signed JWT tokens stored in `HttpOnly`, `SameSite=Lax` cookies to prevent XSS exfiltration. Role-Based Access Control classifies users as `ADMIN`, `PROJECT_MANAGER`, or `TEAM_MEMBER`. Resource-level authorization verifies that PMs only touch projects they lead, and Team Members only update progress and status on tasks assigned to them.
+>
+> **4. Business Logic & Dependency Graph Engine**:
+> The service layer orchestrates business workflows across repositories. Task dependencies are modeled as a Directed Acyclic Graph (DAG). When adding a dependency $A \to B$, an iterative Depth-First Search algorithm explores outgoing edges from $B$ in $O(V + E)$ time; if $A$ is reachable, the operation is blocked to eliminate circular deadlocks. Tasks with incomplete prerequisites are dynamically computed as `isBlocked: true`.
+>
+> **5. Database & Aggregation Layer (MongoDB + Mongoose)**:
+> We utilize 4 primary collections: `users`, `projects`, `tasks`, and `activities`. For dashboard analytics, rather than pulling all documents into Node memory, we leverage MongoDB aggregation pipelines: `$match`, `$group`, `$sum`, and `$avg` to calculate role-scoped metrics, project status distributions, upcoming 7-day deadlines, and team workloads.
+>
+> **6. Verification & Quality**:
+> Verified with 89 automated tests covering authentication, RBAC, project lifecycle, task dependencies, cycle detection, audit logging, and dashboard scoping, alongside ESLint and Vite production builds with zero warnings."*
+
+---
+
+### Step-by-Step 5–7 Minute Live Demonstration Script
+
+When demonstrating the application to recruiters or interviewers, follow this sequence:
+
+1. **Step 1: Admin Overview & Live Analytics (1 min)**:
+   - Log in as Admin Rajesh (`admin@thinqloud.com` / `AdminPassword123!`).
+   - Show Executive Dashboard: point out the real-time KPI cards (Total Projects, Active Projects, Total Tasks, Completed Tasks, In Progress, Overdue).
+   - Point out that these are not hardcoded numbers: they are computed via live MongoDB queries (`GET /api/dashboard`).
+   - Show the **Upcoming Deadlines** widget (tasks due in next 7 days, excluding completed).
+   - Show the **Recent Activity** audit feed showing who changed what and when.
+
+2. **Step 2: Project Management & Team Assignment (1 min)**:
+   - Navigate to `/projects`.
+   - Click **New Project** and create `AI Telemetry Platform`.
+   - Assign Priya Sundaram as Project Manager and add Team Members Sakshi and Amit.
+   - Save and show that atomic code `PRJ-0006` is assigned.
+   - Verify that an audit record (`PROJECT_CREATED`) is automatically created in the activity trail.
+
+3. **Step 3: Task Creation & Dependency Graph Configuration (1.5 min)**:
+   - Open the new project.
+   - Create Task A: `Ingestion Pipeline Setup` (Assigned to Sakshi, Priority: High).
+   - Create Task B: `Real-time Telemetry Dashboard` (Assigned to Amit, Priority: High).
+   - Configure Dependency: Task B depends on Task A.
+   - Show that Task B immediately gains `Blocked` status badge with prerequisite reference.
+   - Try to mark Task B as `Completed`: show server rejection (*"Cannot complete task while blocking prerequisite dependencies remain incomplete"*).
+
+4. **Step 4: Circular Dependency Prevention (1 min)**:
+   - Attempt to add a reverse dependency: make Task A depend on Task B.
+   - Show immediate HTTP 400 rejection: *"Circular dependency detected"*.
+   - Explain to the interviewer: *"We ran an iterative DFS on the backend to detect the cycle before writing to MongoDB."*
+
+5. **Step 5: Completion, Unblocking & Dynamic Progress Recalculation (1 min)**:
+   - Mark Task A as `Completed` (progress reaches 100%, `completedAt` timestamp logged).
+   - Show Task B automatically unblocked and ready for work.
+   - Update Task B progress to 50%.
+   - Show project overall progress updates dynamically to 75% ($\frac{100 + 50}{2}$).
+
+6. **Step 6: Role-Based Access Scoping & Personal Workspace (1 min)**:
+   - Log out and log in as Team Member Sakshi (`dev@thinqloud.com` / `DevPassword123!`).
+   - Notice the Dashboard automatically transforms: metrics are now strictly scoped to Sakshi's assigned tasks and member projects.
+   - Navigate to `/tasks/my` to show her personalized delivery queue.
+   - Attempt to create a project or reassign a task: show that unauthorized actions are forbidden by server-side RBAC.
+
+---
+
+### Troubleshooting Quick-Reference Guide
+
+| Issue | Cause | Solution |
+| :--- | :--- | :--- |
+| **MongoDB not running** | Local `mongod` service stopped | Run `net start MongoDB` or start Docker container `mongod`. |
+| **Backend fails on start** | Port 5000 in use or missing `.env` | Kill process on 5000 (`Get-Process -Id (Get-NetTCPConnection -LocalPort 5000).OwningProcess | Stop-Process`) and copy `.env.example` to `.env`. |
+| **Frontend fails to connect** | CORS mismatch or API down | Verify backend is running on `http://localhost:5000` and `VITE_API_URL` points to `http://localhost:5000/api`. |
+| **Demo login fails (401)** | Database unseeded or altered | Run `node scripts/seed.js` inside `backend/` to restore default accounts. |
+| **Session cookie not sticking** | Browser blocking cross-origin cookies | Ensure frontend and backend both run on `localhost` and `credentials: 'include'` is configured. |
+| **Port 5173 already in use** | Stray Vite dev server running | Run `npx kill-port 5173` or Vite will select `5174` (update CORS if so). |
+
+---
+
+## 22. COMPREHENSIVE INTERVIEW QUESTIONS & ANSWERS (75+ QUESTIONS ACROSS FULL SYSTEM)
+
+### Category 1: Project Overview & Core Value Proposition
+#### Q1: Tell me about your project.
+> "The Project & Task Management System is an enterprise engineering collaboration platform built with the MERN stack (MongoDB, Express, React, Node.js). It provides end-to-end project tracking, task delegation, dependency DAG tracking with cycle prevention, automated overdue risk detection, role-aware executive analytics, and an immutable business audit trail. All entities—Users, Projects, Tasks, and Activities—are 100% database-backed in MongoDB with strict server-side RBAC and 89 automated tests."
+
+#### Q2: What business problem does it solve?
+> "It solves three core operational failures: first, delivery delays caused by fragmented communication across email and chat; second, execution paralysis when team members don't know who owns what or what is blocking what; third, managers discovering overdue deliverables too late to mitigate delivery risks."
+
+#### Q3: Why is this application needed when tools like Jira or Trello exist?
+> "Trello is too simple—it lacks dependency graph validation, cycle detection, and structured multi-level project governance. Jira is often bloated and overly complex for engineering teams. Our system balances ease of use with enterprise rigor: strict RBAC, automated cycle prevention, server-derived blocked/overdue states, and lightweight audit trails."
+
+#### Q4: Who are the target users?
+> "Three organizational roles:
+> 1. Admins: oversee global portfolios, system users, and high-level completion velocity.
+> 2. Project Managers: lead specific projects, assign tasks, sequence dependencies, and monitor deadlines.
+> 3. Team Members: manage their personal task queues (`My Tasks`), log progress, and flag blockers."
+
+#### Q5: What were the major development phases?
+> "We executed 5 structured milestones: Phase 1 frontend foundation; Phase 2 backend auth and user RBAC; Phase 3 project persistence and manager assignment; Phase 4 task engine with dependency DAG and cycle detection; Phase 5 real dashboard analytics, audit trail, and hardening."
+
+---
+
+### Category 2: Frontend Architecture & React Concepts
+#### Q6: Why did you choose React and Vite?
+> "React provides a component-driven architecture with predictable unidirectional data flow. Vite offers near-instant hot module replacement (HMR) and optimized Rollup production builds, resulting in sub-second build times and minimal bundle size (~113 kB gzip)."
+
+#### Q7: What is the difference between a SPA and a traditional multi-page application?
+> "A Single-Page Application (SPA) loads a single HTML shell on initial request. Subsequent page transitions are handled client-side by React Router via dynamic JavaScript rendering without full page reloads, providing snappy desktop-like responsiveness."
+
+#### Q8: How is state managed in your frontend?
+> "We use React Context API: `AuthContext` manages user authentication, token session state, and role permissions; `ProjectContext` manages project collections, task lists, and live activities. Local UI state (modals, dropdowns, form inputs) uses `useState`."
+
+#### Q9: What is the difference between props and state?
+> "- **Props**: Immutable data passed downwards from parent to child components.
+> - **State**: Mutable data maintained and managed within the component itself that triggers re-rendering upon modification via `setState`."
+
+#### Q10: What are React Hooks and why do we use them?
+> "Hooks (`useState`, `useEffect`, `useCallback`, `useContext`) allow functional components to manage state and lifecycle side effects without writing legacy class components, improving code readability and reuse."
+
+#### Q11: How do Protected Routes work in React Router?
+> "We wrap private routes inside a `<ProtectedRoute>` component. It inspects `currentUser` from `AuthContext`. If unauthenticated, it redirects to `/login`. If the route specifies required roles and the user lacks them, it renders an `Unauthorized` state."
+
+#### Q12: Why did you choose Vanilla CSS over TailwindCSS?
+> "Vanilla CSS with semantic custom properties (CSS variables) gives complete control over styling, avoids build-time utility purge overhead, eliminates external CSS framework lock-in, and simplifies enterprise theming."
+
+#### Q13: How do you prevent layout shifts during async data loading?
+> "We render dedicated `LoadingSpinner` components and skeleton placeholders with matching container dimensions to preserve layout geometry before data arrives."
+
+#### Q14: How does the frontend handle empty states?
+> "Every data container (Projects, Tasks, Activities, Deadlines) has an explicit empty state component with contextual guidance and action buttons (e.g. 'No tasks yet — Create Task')."
+
+#### Q15: How does the frontend handle 401 and 403 API errors?
+> "In `apiService.js`, if an HTTP 401 is received, the session is cleared and the user is redirected to `/login` with 'Session expired'. If 403 is received, a user-friendly error banner informs the user they lack sufficient permissions."
+
+---
+
+### Category 3: Backend Architecture & Node/Express
+#### Q16: Why did you choose Node.js and Express?
+> "Node.js offers high-concurrency non-blocking I/O ideal for RESTful JSON APIs. Express provides a minimalist, robust middleware pipeline allowing modular separation of routes, validators, controllers, and services."
+
+#### Q17: Explain the backend layered architecture.
+> "We enforce a strict 4-tier separation:
+> 1. Routes: Define HTTP endpoints and attach middleware (`authenticate`, `validate`).
+> 2. Controllers: Handle HTTP request parsing and response formatting.
+> 3. Services: Encapsulate core business logic, permissions, and cross-model workflows.
+> 4. Repositories: Encapsulate Mongoose database queries and aggregation pipelines."
+
+#### Q18: What is middleware in Express?
+> "A function that has access to `req`, `res`, and `next()`. Middleware can execute code, modify request/response objects, end the request cycle, or pass control to the next middleware (e.g., Helmet, CORS, cookie-parser, auth guards)."
+
+#### Q19: What is the difference between `app.use()` and route handlers?
+> "`app.use()` mounts middleware globally or on a path prefix for all HTTP methods, whereas route handlers (`app.get()`, `app.post()`) match specific HTTP verbs and paths."
+
+#### Q20: Why keep controllers thin?
+> "Thin controllers ensure zero business logic is tied to HTTP transport. This makes services reusable across REST APIs, background jobs, or CLI scripts, and simplifies unit testing."
+
+#### Q21: How do you handle errors centrally in Express?
+> "We implement a centralized error handling middleware (`error.middleware.js`) with 4 parameters `(err, req, res, next)`. It intercepts `ApiError` instances, Zod validation errors, and MongoDB CastErrors, returning consistent JSON responses and hiding stack traces in production."
+
+#### Q22: What is the purpose of `asyncHandler`?
+> "It is a higher-order wrapper that catches rejected promises from async controller functions and automatically passes errors to `next(err)`, avoiding boilerplate `try/catch` in every controller."
+
+---
+
+### Category 4: Database Design & MongoDB
+#### Q23: Why MongoDB over a relational database like PostgreSQL?
+> "MongoDB offers flexible JSON-like document modeling that aligns naturally with JavaScript objects. Its rich Aggregation Pipeline allows complex KPI grouping and deadline derivations directly inside the database engine without heavy SQL joins."
+
+#### Q24: What is Mongoose?
+> "Mongoose is an Object Data Modeling (ODM) library for MongoDB that provides schema definitions, type casting, validation, middleware hooks, and query helpers."
+
+#### Q25: Explain the 4 core MongoDB collections.
+> "1. `users`: Stores user credentials, roles, departments, and avatars.
+> 2. `projects`: Stores project workspace details, manager and members arrays.
+> 3. `tasks`: Stores deliverables, assignees, dates, status, progress, and dependencies.
+> 4. `activities`: Stores immutable audit records of business operations."
+
+#### Q26: What is the difference between an ObjectId reference and document embedding?
+> "- **Embedding**: Storing related data directly inside the document. Good for 1:few data that doesn't change independently.
+> - **Referencing (`ObjectId`)**: Storing pointers to other documents. Essential for many-to-many relationships (e.g., project members, task dependencies) to avoid data duplication and maintain consistency."
+
+#### Q27: How does `.populate()` work in Mongoose?
+> "It performs client-side relational joins: Mongoose executes a secondary `$in` query on the referenced collection and replaces `ObjectId` fields with the populated document objects before returning."
+
+#### Q28: What indexes did you create and why?
+> "We indexed `{ project: 1, status: 1 }` and `{ assignee: 1, status: 1 }` on Tasks for rapid filtering, `{ code: 1 }` unique index on Projects, `{ email: 1 }` unique index on Users, and `{ project: 1, createdAt: -1 }` on Activities."
+
+#### Q29: What is a compound index?
+> "An index covering multiple fields in a specific order (e.g., `{ project: 1, dueDate: 1 }`). It allows MongoDB to satisfy queries filtering on both fields simultaneously using a single index scan."
+
+#### Q30: How do you prevent ReDoS (Regular Expression Denial of Service)?
+> "We sanitize user-provided search inputs using an escape function that prefixes all regex metacharacters (`.*+?^${}()|[]\`) with backslashes before passing them to `$regex`."
+
+---
+
+### Category 5: Authentication, Authorization & Security
+#### Q31: How does authentication work in your application?
+> "The client sends credentials to `POST /api/auth/login`. The server verifies the email, compares password hashes with `bcrypt.compare()`, signs a JWT containing the user ID and role, and attaches it as an `HttpOnly` cookie in the HTTP response."
+
+#### Q32: What is the difference between authentication and authorization?
+> "- **Authentication**: Verifying *who you are* (identity verification via login/JWT).
+> - **Authorization**: Verifying *what you are allowed to do* (permission checks via RBAC and resource ownership)."
+
+#### Q33: Why store JWT in an `HttpOnly` cookie instead of `localStorage`?
+> "Storing JWTs in `localStorage` leaves them accessible to any JavaScript running on the page, making them vulnerable to Cross-Site Scripting (XSS) theft. `HttpOnly` cookies cannot be accessed via JavaScript, providing robust protection against token exfiltration."
+
+#### Q34: What cookie flags did you configure?
+> "`httpOnly: true` (prevents JS access), `sameSite: 'lax'` (prevents CSRF while allowing top-level navigation), `secure: process.env.NODE_ENV === 'production'` (ensures HTTPS transmission in production), and `maxAge: 7 days`."
+
+#### Q35: What is RBAC?
+> "Role-Based Access Control: restricting system access based on the user's organizational role (`ADMIN`, `PROJECT_MANAGER`, `TEAM_MEMBER`)."
+
+#### Q36: What is resource-level authorization?
+> "Checking authorization against the specific database record being modified rather than just the user's role. For example, a Project Manager can only edit projects they lead, not projects managed by other PMs."
+
+#### Q37: How do you prevent mass assignment vulnerabilities?
+> "By defining strict Zod validation schemas that strip unpermitted fields, and never passing raw `req.body` directly to Mongoose `create()` or `update()`. Critical fields like `createdBy` are always populated from `req.user._id`."
+
+#### Q38: How does rate limiting protect the application?
+> "Using `express-rate-limit`, we cap requests (e.g., 300 requests per 15 minutes per IP). This mitigates brute-force credential stuffing and denial-of-service attacks."
+
+#### Q39: What security headers does Helmet provide?
+> "Helmet sets HTTP headers like `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Strict-Transport-Security`, and Content Security Policy to defend against clickjacking, MIME sniffing, and cross-site injection."
+
+#### Q40: How are passwords secured?
+> "Using `bcryptjs` with an adaptive salt work factor of 10. Passwords are never stored in plaintext, and the `password` field is configured with `select: false` in the Mongoose schema so it is omitted from queries by default."
+
+---
+
+### Category 6: Task Management, Dependencies & Cycle Detection
+#### Q41: How do task dependencies work?
+> "A task can declare one or more prerequisite tasks within the same project. Until all prerequisites are marked `COMPLETED`, the dependent task is considered logically blocked."
+
+#### Q42: What algorithm did you use for circular dependency detection?
+> "Iterative Depth-First Search (DFS) on the directed dependency graph."
+
+#### Q43: Walk me through the cycle detection algorithm step by step.
+> "To check if Task A can depend on Task B:
+> 1. Initialize an empty `visited` set and a `stack` containing `[Task B]`.
+> 2. While the stack is not empty, pop the top task.
+> 3. If the popped task equals Task A, a cycle path $B \rightsquigarrow A$ exists! Reject with HTTP 400.
+> 4. If not visited, mark as visited, fetch its dependencies from MongoDB, and push them onto the stack.
+> 5. If the stack empties without encountering Task A, the dependency is acyclic and safe to save."
+
+#### Q44: What is the time and space complexity of your cycle detection?
+> "Time complexity is $O(V + E)$ where $V$ is tasks and $E$ is dependencies in the project. Space complexity is $O(V)$ for the visited set and stack."
+
+#### Q45: Why is the cycle check done iteratively rather than recursively?
+> "Iterative DFS uses an explicit array stack on the heap, preventing JavaScript V8 call stack overflow errors on deep dependency chains."
+
+#### Q46: Can a task depend on a task in another project?
+> "No. Cross-project dependencies are explicitly forbidden to prevent workspace deadlocks and maintain strict project boundaries."
+
+#### Q47: Can a task depend on itself?
+> "No. Self-dependencies ($A \to A$) are caught immediately by checking `taskId === dependencyId`."
+
+#### Q48: How is a task's `isBlocked` status determined?
+> "It is derived dynamically during query populate: if any task in `dependencies` has `status !== 'COMPLETED'`, `isBlocked` is set to `true`."
+
+#### Q49: Why don't you store `isBlocked` in the MongoDB Task document?
+> "Because storing derived state leads to stale data: completing Task B would require finding and updating every task that depends on B. Deriving it dynamically guarantees 100% data consistency."
+
+#### Q50: How do status and progress synchronize?
+> "Setting `progress = 100` forces `status = 'COMPLETED'` and records `completedAt`. Setting `status = 'COMPLETED'` forces `progress = 100`. Reopening a completed task clears `completedAt` to `null` and resets progress if it was 100."
+
+---
+
+### Category 7: Analytics, Aggregations & Dashboard
+#### Q51: How does the Dashboard API work?
+> "`GET /api/dashboard` queries MongoDB using targeted `countDocuments` and Aggregation Pipelines to return role-scoped metrics, status distributions, upcoming deadlines, and recent activities in a single payload."
+
+#### Q52: Why use MongoDB aggregation instead of calculating metrics in JavaScript?
+> "Running aggregations in MongoDB pushes computation to the database engine, avoiding transferring thousands of raw documents over the network and drastically reducing Node.js memory and CPU load."
+
+#### Q53: How does the Admin dashboard differ from the PM dashboard?
+> "Admin sees global workspace metrics across all users, projects, and tasks. PM sees metrics strictly filtered to projects they manage or participate in (`$or: [{ manager: user._id }, { members: user._id }]`)."
+
+#### Q54: What does the Team Member dashboard display?
+> "Personalized workload: assigned tasks, uncompleted tasks, personal upcoming deadlines, and assigned project progress summaries."
+
+#### Q55: How are upcoming deadlines identified?
+> "Using MongoDB query `{ dueDate: { $gte: now, $lte: now + 7 days }, status: { $ne: 'COMPLETED' } }` sorted by `dueDate: 1`. Completed tasks are strictly excluded."
+
+#### Q56: How is overdue status calculated?
+> "A task is overdue when `dueDate < new Date()` and `status !== 'COMPLETED'`. Overdue days are calculated as $\text{ceil}\left(\frac{\text{now} - \text{dueDate}}{86400000}\right)$."
+
+#### Q57: How is project progress calculated?
+> "As the arithmetic mean of all task progress percentages in the project: $\text{round}\left(\frac{\sum \text{task.progress}}{N}\right)$. If $N = 0$, progress is 0%."
+
+#### Q58: What is the team workload widget?
+> "An aggregation that groups tasks by `assignee`, counting total tasks, open tasks, completed tasks, and overdue tasks per team member to highlight workload distribution."
+
+---
+
+### Category 8: Activity Logging & Audit Trail
+#### Q59: What is the activity audit trail?
+> "A persistent ledger in MongoDB (`activities` collection) that records key business events (creations, status transitions, member additions, dependency modifications) with actor, timestamp, and metadata."
+
+#### Q60: How does activity logging avoid logging noisy GET requests?
+> "Activity logging is invoked explicitly at the service layer during state-mutating business operations, not as HTTP-level middleware. Only meaningful business events are recorded."
+
+#### Q61: How are activities authorization-scoped?
+> "Admins can view global activities. PMs can only view activities related to projects they manage. Team Members only view activities for projects they belong to."
+
+#### Q62: What happens if an activity log write fails?
+> "The `logActivity` helper wraps creation in a `try/catch` and logs an internal warning. It never throws or aborts the primary business transaction, ensuring non-blocking audit logging."
+
+---
+
+### Category 9: Testing, Quality Assurance & Git
+#### Q63: What testing framework did you use?
+> "Vitest with Supertest for automated backend REST API integration testing, running against real test MongoDB database instances."
+
+#### Q64: How many tests exist in the project?
+> "89 automated tests across 6 suites: `auth.test.js` (8), `users.test.js` (10), `projects.test.js` (26), `tasks.test.js` (30), `activities.test.js` (9), and `dashboard.test.js` (6)."
+
+#### Q65: How do you isolate tests between runs?
+> "Each test suite connects to an isolated test database and runs `beforeEach` hooks that clear collections (`deleteMany({})`) and seed fresh test fixtures."
+
+#### Q66: What negative security tests did you write?
+> "Tests verifying that Team Members cannot create projects, PMs cannot edit projects they don't manage, unauthenticated requests return 401, invalid ObjectIds return 400, and circular dependencies are rejected."
+
+#### Q67: What was your Git branching and commit strategy?
+> "A linear, milestone-driven Git history on `main` where each major phase was committed as a clean conventional commit (`feat: complete Phase X ...`) only after all automated tests and builds passed."
+
+#### Q68: Why avoid `git push --force`?
+> "Force pushing overwrites remote commit history, potentially destroying collaborators' commits and erasing the verifiable evolutionary timeline of the codebase."
+
+---
+
+### Category 10: Scalability, Trade-Offs & Future Improvements
+#### Q69: How would you scale this system to 100,000 active users?
+> "1. Introduce Redis caching for read-heavy dashboard metrics and user sessions.
+> 2. Implement MongoDB horizontal sharding on `tasks` by `project`.
+> 3. Deploy Node.js backend as stateless containers behind an AWS ALB with horizontal pod autoscaling.
+> 4. Offload heavy reports to background worker queues."
+
+#### Q70: What trade-off did you make regarding WebSockets?
+> "We chose short-polling and refresh buttons over WebSockets. WebSockets add persistent socket memory overhead and connection state complexity. For a task management tool where updates occur in minutes rather than milliseconds, HTTP polling provides superior simplicity and stability."
+
+#### Q71: What trade-off did you make regarding soft deletes?
+> "We implemented soft archiving on Projects (`status = 'ARCHIVED'`), but hard deletes on Tasks. Archiving projects preserves audit history for corporate governance, while hard-deleting draft/test tasks avoids unbounded orphan accumulation."
+
+#### Q72: How would you handle file attachments in the future?
+> "Store file metadata in MongoDB and upload binary assets directly to an S3-compatible object store using pre-signed upload URLs to avoid streaming large files through Node.js."
+
+#### Q73: What is the biggest lesson you learned building this project?
+> "Separation of concerns is paramount. By enforcing clean boundaries between React presentation, Express routing, service business rules, and MongoDB repositories, we migrated entire subsystems (from mock data to MongoDB) without breaking frontend components or destabilizing earlier phases."
+
+#### Q74: If you had another sprint, what feature would you add?
+> "Email notifications via SendGrid/SES for upcoming deadline warnings and automated daily standup digest emails for team members."
+
+#### Q75: Why are you confident in this project for a production deployment?
+> "Because it isn't an MVP toy: it features strict input validation with Zod, production security headers, HttpOnly cookie authentication, real DAG cycle detection algorithms, 100% database-backed entities, 89 passing automated tests, zero lint warnings, and a rock-solid Git audit history."
+
+
 
 

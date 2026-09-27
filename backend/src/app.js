@@ -8,6 +8,8 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import projectRoutes from './routes/project.routes.js';
 import taskRoutes from './routes/task.routes.js';
+import activityRoutes from './routes/activity.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import { notFound } from './middleware/notFound.middleware.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
@@ -68,6 +70,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/activities', activityRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 Handler
 app.use(notFound);

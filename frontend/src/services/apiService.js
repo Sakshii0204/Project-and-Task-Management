@@ -10,7 +10,6 @@
 
 import { mockUsers } from '../data/mockUsers';
 import { mockProjects } from '../data/mockProjects';
-import { mockActivities } from '../data/mockActivities';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -559,22 +558,61 @@ export const apiService = {
   },
 
   // ==========================================
-  // Activities (Audit Trail)
+  // Dashboard Analytics (Phase 5)
   // ==========================================
 
-  async getActivities() {
-    return getStoredData(STORAGE_KEYS.ACTIVITIES, mockActivities);
+  async getDashboard() {
+    const response = await request('/dashboard', {
+      method: 'GET',
+    });
+    return response.data;
   },
 
-  async logActivity(activityData) {
-    const activities = getStoredData(STORAGE_KEYS.ACTIVITIES, mockActivities);
-    const newActivity = {
-      ...activityData,
-      id: `act-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-    };
-    const updated = [newActivity, ...activities.slice(0, 49)];
-    setStoredData(STORAGE_KEYS.ACTIVITIES, updated);
-    return newActivity;
+  // ==========================================
+  // Activities (Audit Trail - Phase 5)
+  // ==========================================
+
+  async getActivities(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.project) searchParams.append('project', params.project);
+    if (params.actor) searchParams.append('actor', params.actor);
+    if (params.entityType) searchParams.append('entityType', params.entityType);
+    if (params.action) searchParams.append('action', params.action);
+    if (params.page) searchParams.append('page', params.page);
+    if (params.limit) searchParams.append('limit', params.limit);
+
+    const queryStr = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    const response = await request(`/activities${queryStr}`, {
+      method: 'GET',
+    });
+
+    const activities = response.data || [];
+    return activities.map((act) => ({
+      id: act._id || act.id,
+      action: act.action,
+      entityType: act.entityType,
+      entityId: act.entityId,
+      description: act.description,
+      metadata: act.metadata,
+      timestamp: act.createdAt,
+      user: act.actor
+        ? {
+            id: act.actor._id || act.actor.id,
+            name: act.actor.name,
+            email: act.actor.email,
+            role: act.actor.role,
+            avatar: act.actor.avatar,
+            department: act.actor.department,
+          }
+        : null,
+      project: act.project
+        ? {
+            id: act.project._id || act.project.id,
+            name: act.project.name,
+            code: act.project.code,
+            status: act.project.status,
+          }
+        : null,
+    }));
   },
 };

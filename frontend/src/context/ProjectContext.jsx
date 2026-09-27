@@ -21,13 +21,14 @@ export function ProjectProvider({ children }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load real projects, tasks, and users from MongoDB backend on mount
+  // Load real projects, tasks, activities, and users from MongoDB backend on mount
   const refreshProjects = useCallback(async () => {
     try {
-      const [fetchedProjects, fetchedTasks, fetchedUsers] = await Promise.all([
+      const [fetchedProjects, fetchedTasks, fetchedUsers, fetchedActivities] = await Promise.all([
         apiService.getProjects(),
         apiService.getTasks({ limit: 100 }),
         apiService.getUsers(),
+        apiService.getActivities({ limit: 50 }).catch(() => []),
       ]);
       if (Array.isArray(fetchedProjects)) {
         setProjects(fetchedProjects);
@@ -37,6 +38,9 @@ export function ProjectProvider({ children }) {
       }
       if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
         setUsers(fetchedUsers);
+      }
+      if (Array.isArray(fetchedActivities) && fetchedActivities.length > 0) {
+        setActivities(fetchedActivities);
       }
     } catch (e) {
       console.warn('Initial project/task/user load fallback:', e);

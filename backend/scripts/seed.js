@@ -2,6 +2,7 @@ import { connectDB, disconnectDB } from '../src/config/database.js';
 import { User, USER_ROLES, USER_STATUS } from '../src/models/User.js';
 import { Project, PROJECT_STATUS, PROJECT_PRIORITY } from '../src/models/Project.js';
 import { Task, TASK_STATUS, TASK_PRIORITY } from '../src/models/Task.js';
+import { Activity } from '../src/models/Activity.js';
 import { hashPassword } from '../src/utils/password.js';
 
 const seedUsers = [
@@ -50,6 +51,15 @@ const seedUsers = [
     status: USER_STATUS.ACTIVE,
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   },
+  {
+    name: 'Vikram Joshi',
+    email: 'vikram.j@thinqloud.com',
+    rawPassword: 'DevPassword123!',
+    role: USER_ROLES.TEAM_MEMBER,
+    department: 'QA & Security',
+    status: USER_STATUS.ACTIVE,
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+  },
 ];
 
 const seedDatabase = async () => {
@@ -57,7 +67,8 @@ const seedDatabase = async () => {
     console.log('[Seed] Connecting to MongoDB...');
     await connectDB();
 
-    console.log('[Seed] Purging existing Task, Project, and User collections...');
+    console.log('[Seed] Purging existing Activity, Task, Project, and User collections...');
+    await Activity.deleteMany({});
     await Task.deleteMany({});
     await Project.deleteMany({});
     await User.deleteMany({});
@@ -84,6 +95,7 @@ const seedDatabase = async () => {
     const devUser = userMap['dev@thinqloud.com'];
     const amitUser = userMap['amit.d@thinqloud.com'];
     const nehaUser = userMap['neha.v@thinqloud.com'];
+    const vikramUser = userMap['vikram.j@thinqloud.com'];
 
     const projectsToSeed = [
       {
@@ -92,7 +104,7 @@ const seedDatabase = async () => {
         description:
           'Migrate monolithic on-premise transactional systems to multi-region AWS cloud infrastructure with Kubernetes container orchestration and automated disaster recovery.',
         manager: pmUser._id,
-        members: [pmUser._id, devUser._id, amitUser._id, adminUser._id],
+        members: [pmUser._id, devUser._id, amitUser._id, vikramUser._id, adminUser._id],
         status: PROJECT_STATUS.ACTIVE,
         priority: PROJECT_PRIORITY.CRITICAL,
         category: 'Infrastructure',
@@ -152,7 +164,7 @@ const seedDatabase = async () => {
         description:
           'Native iOS and Android retail banking experience featuring biometric authentication, scheduled UPI mandates, investment portfolios, and expense insights.',
         manager: adminUser._id,
-        members: [adminUser._id, pmUser._id, devUser._id, amitUser._id],
+        members: [adminUser._id, pmUser._id, devUser._id, amitUser._id, vikramUser._id],
         status: PROJECT_STATUS.ACTIVE,
         priority: PROJECT_PRIORITY.CRITICAL,
         category: 'Mobile Applications',
@@ -168,17 +180,14 @@ const seedDatabase = async () => {
       const doc = await Project.create(proj);
       projectDocs.push(doc);
     }
-    const [cloudProj, paymentProj, hrmsProj] = projectDocs;
+    const [cloudProj, paymentProj, hrmsProj, analyticsProj, mobileProj] = projectDocs;
 
-    console.log('[Seed] Seeding realistic enterprise tasks with dependency chains...');
+    console.log('[Seed] Seeding realistic enterprise tasks across projects...');
+
     // Project 1: Cloud Migration Dependency Chain
-    // T1: VPC & Network (COMPLETED, progress=100)
-    // T2: Kubernetes Cluster (IN_PROGRESS, progress=70, depends on T1)
-    // T3: Microservices Deployment (BLOCKED, progress=0, depends on T2)
-    // T4: Security & Penetration Audit (TODO, progress=0, depends on T3, overdue demonstration)
     const task1 = await Task.create({
       title: 'Architect VPC & Multi-Region Transit Gateways',
-      description: 'Define CIDR blocks, private subnets, NAT gateways, and peering across AWS ap-south-1 and us-east-1 regions.',
+      description: 'Define CIDR blocks, private subnets, NAT gateways, and peering across AWS regions.',
       project: cloudProj._id,
       assignee: devUser._id,
       createdBy: pmUser._id,
@@ -193,13 +202,13 @@ const seedDatabase = async () => {
 
     const task2 = await Task.create({
       title: 'Provision EKS Kubernetes Cluster Infrastructure',
-      description: 'Deploy managed node groups with Terraform, configure CoreDNS, cluster autoscaler, and Calico network policies.',
+      description: 'Deploy managed node groups with Terraform, configure CoreDNS and autoscaler.',
       project: cloudProj._id,
       assignee: devUser._id,
       createdBy: pmUser._id,
       priority: TASK_PRIORITY.CRITICAL,
       status: TASK_STATUS.IN_PROGRESS,
-      progress: 70,
+      progress: 75,
       startDate: new Date('2026-08-21'),
       dueDate: new Date('2026-10-15'),
       dependencies: [task1._id],
@@ -207,7 +216,7 @@ const seedDatabase = async () => {
 
     const task3 = await Task.create({
       title: 'Containerize and Migrate Core Services onto EKS',
-      description: 'Helm charts deployment, secret management via AWS Secrets Manager, and ingress controller routing.',
+      description: 'Helm charts deployment, secret management via Secrets Manager.',
       project: cloudProj._id,
       assignee: amitUser._id,
       createdBy: pmUser._id,
@@ -221,7 +230,7 @@ const seedDatabase = async () => {
 
     const task4 = await Task.create({
       title: 'Disaster Recovery and Failover Testing',
-      description: 'Simulate region outage and verify automated Route 53 health-check failover to backup cluster.',
+      description: 'Simulate region outage and verify automated Route 53 health-check failover.',
       project: cloudProj._id,
       assignee: adminUser._id,
       createdBy: pmUser._id,
@@ -229,20 +238,20 @@ const seedDatabase = async () => {
       status: TASK_STATUS.TODO,
       progress: 0,
       startDate: new Date('2026-08-05'),
-      dueDate: new Date('2026-09-15'), // Overdue date
+      dueDate: new Date('2026-09-15'), // Overdue
       dependencies: [task3._id],
     });
 
     // Project 2: E-Commerce Payment Gateway
     const task5 = await Task.create({
       title: 'PCI-DSS Compliance Tokenization Vault',
-      description: 'Implement tokenization service using AES-256 GCM encryption keys stored in HSM.',
+      description: 'Implement tokenization service using AES-256 GCM encryption keys.',
       project: paymentProj._id,
       assignee: devUser._id,
       createdBy: pmUser._id,
       priority: TASK_PRIORITY.CRITICAL,
       status: TASK_STATUS.IN_PROGRESS,
-      progress: 45,
+      progress: 50,
       startDate: new Date('2026-07-15'),
       dueDate: new Date('2026-10-10'),
       dependencies: [],
@@ -250,7 +259,7 @@ const seedDatabase = async () => {
 
     const task6 = await Task.create({
       title: 'Unified UPI Deep Linking & Webhook Handler',
-      description: 'Integrate NPCI UPI rails with idempotency key deduplication and auto-refund webhooks.',
+      description: 'Integrate NPCI UPI rails with idempotency key deduplication.',
       project: paymentProj._id,
       assignee: amitUser._id,
       createdBy: pmUser._id,
@@ -264,20 +273,35 @@ const seedDatabase = async () => {
 
     const task7 = await Task.create({
       title: 'Checkout UI & Payment Modal Components',
-      description: 'Build sleek, accessible payment sheet with instant error recovery and fallback payment modes.',
+      description: 'Build accessible payment sheet with instant error recovery.',
       project: paymentProj._id,
       assignee: nehaUser._id,
       createdBy: pmUser._id,
       priority: TASK_PRIORITY.MEDIUM,
-      status: TASK_STATUS.TODO,
-      progress: 0,
+      status: TASK_STATUS.COMPLETED,
+      progress: 100,
       startDate: new Date('2026-08-10'),
-      dueDate: new Date('2026-10-25'),
+      dueDate: new Date('2026-09-20'),
+      completedAt: new Date('2026-09-18'),
+      dependencies: [],
+    });
+
+    const task8 = await Task.create({
+      title: 'Refund Automation & Settlement Reconciliation',
+      description: 'Process batch merchant settlements with webhook dispatch.',
+      project: paymentProj._id,
+      assignee: vikramUser._id,
+      createdBy: pmUser._id,
+      priority: TASK_PRIORITY.HIGH,
+      status: TASK_STATUS.IN_PROGRESS,
+      progress: 40,
+      startDate: new Date('2026-09-10'),
+      dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // Upcoming due in 3 days!
       dependencies: [],
     });
 
     // Project 3: HRMS Portal
-    const task8 = await Task.create({
+    const task9 = await Task.create({
       title: 'Employee Onboarding & Document Verification Workflow',
       description: 'Automate PDF document verification, e-signatures, and profile activation.',
       project: hrmsProj._id,
@@ -287,14 +311,185 @@ const seedDatabase = async () => {
       status: TASK_STATUS.TODO,
       progress: 0,
       startDate: new Date('2026-06-15'),
-      dueDate: new Date('2026-08-15'), // Overdue date
+      dueDate: new Date('2026-08-15'), // Overdue
       dependencies: [],
     });
 
-    const totalSeededTasks = [task1, task2, task3, task4, task5, task6, task7, task8];
+    const task10 = await Task.create({
+      title: 'Payroll Tax Calculator & Payslip Generator',
+      description: 'Configure new tax regime brackets and generate monthly PDF payslips.',
+      project: hrmsProj._id,
+      assignee: nehaUser._id,
+      createdBy: adminUser._id,
+      priority: TASK_PRIORITY.HIGH,
+      status: TASK_STATUS.IN_PROGRESS,
+      progress: 30,
+      startDate: new Date('2026-07-01'),
+      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // Upcoming due in 5 days!
+      dependencies: [],
+    });
+
+    // Project 4: Customer Analytics Engine
+    const task11 = await Task.create({
+      title: 'Kafka Event Pipeline & Clickstream Ingestion',
+      description: 'Stream client telemetry events at 50,000 eps into ClickHouse cluster.',
+      project: analyticsProj._id,
+      assignee: amitUser._id,
+      createdBy: pmUser._id,
+      priority: TASK_PRIORITY.CRITICAL,
+      status: TASK_STATUS.TODO,
+      progress: 0,
+      startDate: new Date('2026-09-01'),
+      dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), // Upcoming due in 4 days!
+      dependencies: [],
+    });
+
+    const task12 = await Task.create({
+      title: 'Churn Prediction Model Feature Store',
+      description: 'Transform user interaction frequency into ML feature vectors.',
+      project: analyticsProj._id,
+      assignee: devUser._id,
+      createdBy: pmUser._id,
+      priority: TASK_PRIORITY.HIGH,
+      status: TASK_STATUS.TODO,
+      progress: 0,
+      startDate: new Date('2026-09-15'),
+      dueDate: new Date('2026-11-30'),
+      dependencies: [task11._id],
+    });
+
+    // Project 5: Mobile Banking Application
+    const task13 = await Task.create({
+      title: 'Biometric FaceID & Fingerprint Authentication Module',
+      description: 'Integrate Keychain & Android KeyStore hardware-backed keystores.',
+      project: mobileProj._id,
+      assignee: devUser._id,
+      createdBy: adminUser._id,
+      priority: TASK_PRIORITY.CRITICAL,
+      status: TASK_STATUS.COMPLETED,
+      progress: 100,
+      startDate: new Date('2026-05-20'),
+      dueDate: new Date('2026-06-30'),
+      completedAt: new Date('2026-06-28'),
+      dependencies: [],
+    });
+
+    const task14 = await Task.create({
+      title: 'Scheduled UPI Auto-Debit Mandate Interface',
+      description: 'Build user flow for recurring utility bill subscriptions and mutual funds.',
+      project: mobileProj._id,
+      assignee: amitUser._id,
+      createdBy: adminUser._id,
+      priority: TASK_PRIORITY.HIGH,
+      status: TASK_STATUS.IN_PROGRESS,
+      progress: 60,
+      startDate: new Date('2026-07-01'),
+      dueDate: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000), // Upcoming due in 6 days!
+      dependencies: [task13._id],
+    });
+
+    const task15 = await Task.create({
+      title: 'Investment Portfolio Real-Time Net Worth Graph',
+      description: 'Render interactive SVG portfolio charts with daily NAV sync.',
+      project: mobileProj._id,
+      assignee: nehaUser._id,
+      createdBy: adminUser._id,
+      priority: TASK_PRIORITY.MEDIUM,
+      status: TASK_STATUS.TODO,
+      progress: 0,
+      startDate: new Date('2026-08-01'),
+      dueDate: new Date('2026-10-31'),
+      dependencies: [],
+    });
+
+    const task16 = await Task.create({
+      title: 'End-to-End Penetration Testing & OWASP Mobile Review',
+      description: 'Static and dynamic vulnerability testing against reverse engineering and certificate pinning bypass.',
+      project: mobileProj._id,
+      assignee: vikramUser._id,
+      createdBy: adminUser._id,
+      priority: TASK_PRIORITY.CRITICAL,
+      status: TASK_STATUS.TODO,
+      progress: 0,
+      startDate: new Date('2026-07-15'),
+      dueDate: new Date('2026-08-30'), // Overdue
+      dependencies: [task14._id],
+    });
+
+    const totalSeededTasks = [
+      task1, task2, task3, task4, task5, task6, task7, task8,
+      task9, task10, task11, task12, task13, task14, task15, task16
+    ];
+
+    console.log('[Seed] Seeding audit trail and business activity records...');
+    await Activity.create([
+      {
+        actor: adminUser._id,
+        action: 'PROJECT_CREATED',
+        entityType: 'PROJECT',
+        entityId: cloudProj._id,
+        project: cloudProj._id,
+        description: 'Created project "Enterprise Cloud Migration"',
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      },
+      {
+        actor: pmUser._id,
+        action: 'TASK_CREATED',
+        entityType: 'TASK',
+        entityId: task1._id,
+        project: cloudProj._id,
+        description: 'Created task "Architect VPC & Multi-Region Transit Gateways"',
+        createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000),
+      },
+      {
+        actor: devUser._id,
+        action: 'TASK_STATUS_CHANGED',
+        entityType: 'TASK',
+        entityId: task1._id,
+        project: cloudProj._id,
+        description: 'Marked task "Architect VPC & Multi-Region Transit Gateways" as COMPLETED',
+        createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      },
+      {
+        actor: pmUser._id,
+        action: 'TASK_DEPENDENCY_ADDED',
+        entityType: 'TASK',
+        entityId: task2._id,
+        project: cloudProj._id,
+        description: 'Added dependency on task "Architect VPC & Multi-Region Transit Gateways"',
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+      {
+        actor: devUser._id,
+        action: 'TASK_PROGRESS_CHANGED',
+        entityType: 'TASK',
+        entityId: task2._id,
+        project: cloudProj._id,
+        description: 'Updated progress of "Provision EKS Kubernetes Cluster Infrastructure" to 75%',
+        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      },
+      {
+        actor: nehaUser._id,
+        action: 'TASK_STATUS_CHANGED',
+        entityType: 'TASK',
+        entityId: task7._id,
+        project: paymentProj._id,
+        description: 'Completed "Checkout UI & Payment Modal Components"',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
+      {
+        actor: adminUser._id,
+        action: 'PROJECT_MEMBER_ADDED',
+        entityType: 'PROJECT',
+        entityId: mobileProj._id,
+        project: mobileProj._id,
+        description: 'Added Vikram Joshi to project "Mobile Banking Application"',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      },
+    ]);
 
     console.log('===========================================================');
-    console.log(' SEEDING COMPLETED SUCCESSFULLY — MONGODB USERS, PROJECTS, TASKS');
+    console.log(' SEEDING COMPLETED SUCCESSFULLY — MONGODB USERS, PROJECTS, TASKS, ACTIVITIES');
     console.log('===========================================================');
     console.log('Demo Credentials for Authentication:');
     seedUsers.forEach((u) => {
@@ -303,6 +498,7 @@ const seedDatabase = async () => {
     console.log('-----------------------------------------------------------');
     console.log(`Seeded ${projectsToSeed.length} projects successfully in MongoDB.`);
     console.log(`Seeded ${totalSeededTasks.length} tasks successfully with realistic dependencies.`);
+    console.log(`Seeded realistic activity audit trail records in MongoDB.`);
     console.log('===========================================================');
 
     await disconnectDB();

@@ -1,5 +1,7 @@
 import { projectRepository } from '../repositories/project.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
+import { activityService } from './activity.service.js';
+import { ACTIVITY_ACTIONS, ACTIVITY_ENTITIES } from '../models/Activity.js';
 import { ApiError } from '../utils/ApiError.js';
 import { USER_ROLES, USER_STATUS } from '../models/User.js';
 
@@ -81,7 +83,19 @@ export const projectService = {
       createdBy: user._id,
     });
 
-    return projectRepository.findByIdWithDetails(created._id);
+    const populated = await projectRepository.findByIdWithDetails(created._id);
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_CREATED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: populated._id,
+      project: populated._id,
+      description: `${user.name} created project "${populated.name}" (${populated.code})`,
+      metadata: { code: populated.code, priority: populated.priority },
+    });
+
+    return populated;
   },
 
   async listProjectsForUser(user, query = {}) {
@@ -204,7 +218,19 @@ export const projectService = {
       throw ApiError.badRequest('Start date cannot be after due date');
     }
 
-    return projectRepository.update(projectId, updates);
+    const updated = await projectRepository.update(projectId, updates);
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_UPDATED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: project._id,
+      project: project._id,
+      description: `${user.name} updated project details for "${project.name}"`,
+      metadata: { updatedFields: Object.keys(updates) },
+    });
+
+    return updated;
   },
 
   async updateProjectStatus(projectId, status, user) {
@@ -220,7 +246,19 @@ export const projectService = {
       );
     }
 
-    return projectRepository.update(projectId, { status: status.toUpperCase() });
+    const updated = await projectRepository.update(projectId, { status: status.toUpperCase() });
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_STATUS_CHANGED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: project._id,
+      project: project._id,
+      description: `${user.name} changed project status from ${project.status} to ${status.toUpperCase()} on "${project.name}"`,
+      metadata: { previousStatus: project.status, newStatus: status.toUpperCase() },
+    });
+
+    return updated;
   },
 
   async archiveProject(projectId, user) {
@@ -236,7 +274,19 @@ export const projectService = {
       );
     }
 
-    return projectRepository.archive(projectId);
+    const archived = await projectRepository.archive(projectId);
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_ARCHIVED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: project._id,
+      project: project._id,
+      description: `${user.name} archived project "${project.name}"`,
+      metadata: { code: project.code },
+    });
+
+    return archived;
   },
 
   async addProjectMember(projectId, memberUserId, user) {
@@ -267,6 +317,16 @@ export const projectService = {
     project.members.push(memberUser._id);
     await project.save();
 
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_MEMBER_ADDED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: project._id,
+      project: project._id,
+      description: `${user.name} added ${memberUser.name} to project "${project.name}"`,
+      metadata: { addedUserId: memberUser._id },
+    });
+
     return projectRepository.findByIdWithDetails(projectId);
   },
 
@@ -296,8 +356,19 @@ export const projectService = {
       throw ApiError.badRequest('User is not a member of this project');
     }
 
+    const removedUserId = project.members[memberIndex];
     project.members.splice(memberIndex, 1);
     await project.save();
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_MEMBER_REMOVED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: project._id,
+      project: project._id,
+      description: `${user.name} removed a member from project "${project.name}"`,
+      metadata: { removedUserId },
+    });
 
     return projectRepository.findByIdWithDetails(projectId);
   },
@@ -331,6 +402,7 @@ export const projectService = {
       );
     }
 
+    const prevManagerId = project.manager;
     project.manager = newManager._id;
     // Ensure new manager is in members array
     if (!project.members.some((m) => m.toString() === newManager._id.toString())) {
@@ -338,6 +410,17 @@ export const projectService = {
     }
 
     await project.save();
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.PROJECT_MANAGER_CHANGED,
+      entityType: ACTIVITY_ENTITIES.PROJECT,
+      entityId: project._id,
+      project: project._id,
+      description: `${user.name} reassigned project lead to ${newManager.name} on "${project.name}"`,
+      metadata: { prevManagerId, newManagerId: newManager._id },
+    });
+
     return projectRepository.findByIdWithDetails(projectId);
   },
 };

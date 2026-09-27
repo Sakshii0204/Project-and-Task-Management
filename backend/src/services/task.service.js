@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { taskRepository } from '../repositories/task.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
+import { activityService } from './activity.service.js';
+import { ACTIVITY_ACTIONS, ACTIVITY_ENTITIES } from '../models/Activity.js';
 import { ApiError } from '../utils/ApiError.js';
 import { USER_ROLES, USER_STATUS } from '../models/User.js';
 import { TASK_STATUS } from '../models/Task.js';
@@ -99,7 +101,19 @@ export const taskService = {
       completedAt,
     });
 
-    return taskRepository.findByIdWithDetails(created._id);
+    const populated = await taskRepository.findByIdWithDetails(created._id);
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.TASK_CREATED,
+      entityType: ACTIVITY_ENTITIES.TASK,
+      entityId: populated._id,
+      project: project._id,
+      description: `${user.name} created task "${populated.title}" and assigned to ${assignee.name}`,
+      metadata: { taskId: populated._id, priority: populated.priority },
+    });
+
+    return populated;
   },
 
   async listTasks(user, query = {}) {
@@ -359,6 +373,40 @@ export const taskService = {
       : [];
     plain.isBlocked = blockingDeps.length > 0;
     plain.blockingDependencies = blockingDeps;
+
+    // Log specific task execution actions
+    if (updates.status && updates.status.toUpperCase() !== task.status) {
+      await activityService.logActivity({
+        actor: user._id,
+        action: ACTIVITY_ACTIONS.TASK_STATUS_CHANGED,
+        entityType: ACTIVITY_ENTITIES.TASK,
+        entityId: task._id,
+        project: project._id,
+        description: `${user.name} changed status of "${task.title}" to ${newStatus}`,
+        metadata: { previousStatus: task.status, newStatus },
+      });
+    } else if (updates.progress !== undefined && Number(updates.progress) !== task.progress) {
+      await activityService.logActivity({
+        actor: user._id,
+        action: ACTIVITY_ACTIONS.TASK_PROGRESS_CHANGED,
+        entityType: ACTIVITY_ENTITIES.TASK,
+        entityId: task._id,
+        project: project._id,
+        description: `${user.name} updated progress of "${task.title}" to ${newProgress}%`,
+        metadata: { previousProgress: task.progress, newProgress },
+      });
+    } else {
+      await activityService.logActivity({
+        actor: user._id,
+        action: ACTIVITY_ACTIONS.TASK_UPDATED,
+        entityType: ACTIVITY_ENTITIES.TASK,
+        entityId: task._id,
+        project: project._id,
+        description: `${user.name} updated task "${task.title}"`,
+        metadata: { updatedFields: Object.keys(updates) },
+      });
+    }
+
     return plain;
   },
 
@@ -414,6 +462,16 @@ export const taskService = {
     task.dependencies.push(depTask._id);
     await task.save();
 
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.TASK_DEPENDENCY_ADDED,
+      entityType: ACTIVITY_ENTITIES.TASK,
+      entityId: task._id,
+      project: project._id,
+      description: `${user.name} added prerequisite dependency "${depTask.title}" to "${task.title}"`,
+      metadata: { dependencyId: depTask._id },
+    });
+
     return taskRepository.findByIdWithDetails(taskId);
   },
 
@@ -441,6 +499,16 @@ export const taskService = {
     task.dependencies.splice(index, 1);
     await task.save();
 
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.TASK_DEPENDENCY_REMOVED,
+      entityType: ACTIVITY_ENTITIES.TASK,
+      entityId: task._id,
+      project: project._id,
+      description: `${user.name} removed dependency from task "${task.title}"`,
+      metadata: { dependencyId },
+    });
+
     return taskRepository.findByIdWithDetails(taskId);
   },
 
@@ -461,12 +529,24 @@ export const taskService = {
     }
 
     // Clean up dependencies references in other tasks
+    const { Task } = await import('../models/Task.js');
     await Task.updateMany(
       { dependencies: task._id },
       { $pull: { dependencies: task._id } }
     );
 
     await taskRepository.delete(taskId);
+
+    await activityService.logActivity({
+      actor: user._id,
+      action: ACTIVITY_ACTIONS.TASK_DELETED,
+      entityType: ACTIVITY_ENTITIES.TASK,
+      entityId: task._id,
+      project: project._id,
+      description: `${user.name} deleted task "${task.title}"`,
+      metadata: { taskTitle: task.title },
+    });
+
     return true;
   },
 

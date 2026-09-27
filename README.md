@@ -7,8 +7,8 @@ A production-grade, business-oriented Project & Task Management web platform bui
 | **Phase 1: Frontend Foundation** | **COMPLETE** | React 19, Vite, responsive UI, executive KPI dashboard, dynamic progress & overdue engines, task dependency matrix |
 | **Phase 2: Backend, Real Auth & RBAC** | **COMPLETE** | Node.js, Express, MongoDB, Mongoose, JWT in HttpOnly cookies, bcrypt hashing, server-side RBAC, Zod validation |
 | **Phase 3: Real Database Projects & Teams**| **COMPLETE** | MongoDB Project schema, Mongoose relationships (`ObjectId`), manager & team membership, resource-level RBAC, code generator (`PRJ-XXXX`), archive workflow |
-| **Phase 4: Database Tasks & Engine** | **COMPLETE** | Mongoose Task schema, real task dependencies (DAG), DFS cycle detection, dynamic progress calculation, assignment engine, 74/74 tests passing |
-| **Phase 5: Real-time & Presentation Polish** | *NOT STARTED* | Socket.IO live notifications, team activity streams, export reports |
+| **Phase 4: Database Tasks & Engine** | **COMPLETE** | Mongoose Task schema, real task dependencies (DAG), DFS cycle detection, dynamic progress calculation, assignment engine |
+| **Phase 5: Real Dashboard Analytics & Audit Trail** | **COMPLETE** | Live database-backed KPI dashboard (`GET /api/dashboard`), role-aware aggregation pipelines, enterprise activity audit trail (`GET /api/activities`), 89/89 tests passing |
 
 ---
 
@@ -18,6 +18,8 @@ A production-grade, business-oriented Project & Task Management web platform bui
 - **Authorization**: **Server-Side RBAC & Resource-Level Security** (`ADMIN`, `PROJECT_MANAGER`, `TEAM_MEMBER`)
 - **Projects**: **MongoDB Database** (Mongoose `Project` model, manager & member `ObjectId` references)
 - **Tasks**: **MongoDB Database** (Mongoose `Task` model, project & assignee references, real DAG dependencies)
+- **Activities**: **MongoDB Database** (Mongoose `Activity` audit trail, 16 business lifecycle events)
+- **Dashboard**: **MongoDB Aggregation Pipelines** (Role-scoped executive KPIs, upcoming 7-day deadlines, project progress)
 - **Dependencies**: **Directed Graph Engine** (Iterative DFS cycle prevention, derived `isBlocked` / `blockingDependencies`)
 - **Project Progress**: **Database-Derived Truth** ($\text{SUM}(\text{progress}) / N$ across MongoDB tasks)
 
@@ -175,6 +177,12 @@ The login screen features one-click autofill buttons mapped to real accounts see
 - `DELETE /api/tasks/:id/dependencies/:dependencyId`: Remove prerequisite dependency
 - `DELETE /api/tasks/:id`: Delete task and cleanup dependency references
 
+### Activity & Audit Trail (`/api/activities`)
+- `GET /api/activities`: List role-scoped business activity audit trail with pagination and filters (`project`, `actor`, `entityType`, `action`)
+
+### Executive Dashboard (`/api/dashboard`)
+- `GET /api/dashboard`: Get role-aware executive KPIs, project/task status distributions, upcoming 7-day deadlines, and project progress summaries
+
 ---
 
 ## 🧪 Automated Testing & Verification
@@ -184,7 +192,7 @@ The login screen features one-click autofill buttons mapped to real accounts see
 cd backend
 npm test
 ```
-*Executes 74 automated integration tests covering authentication, session cookies, RBAC route guards, user operations, project creation, member assignments, task lifecycle, DFS circular dependency detection, blocked task enforcement, overdue derivation, and real project progress calculations.*
+*Executes 89 automated integration tests covering authentication, session cookies, RBAC route guards, user operations, project creation, member assignments, task lifecycle, DFS circular dependency detection, blocked task enforcement, overdue derivation, activity logging, and role-scoped dashboard metrics.*
 
 ### Run Frontend Lint & Build
 ```bash
@@ -200,5 +208,6 @@ npm run build
 - **[docs/phase-2.md](file:///d:/Project%20and%20Task%20Management/docs/phase-2.md)**: Phase 2 backend foundation, real authentication, RBAC matrix, and API contracts.
 - **[docs/phase-3.md](file:///d:/Project%20and%20Task%20Management/docs/phase-3.md)**: Phase 3 Project and Team Management implementation report, schema design, and resource authorization.
 - **[docs/phase-4.md](file:///d:/Project%20and%20Task%20Management/docs/phase-4.md)**: Phase 4 Task Management Engine, DFS cycle detection, DAG dependencies, and MongoDB integration.
+- **[docs/phase-5.md](file:///d:/Project%20and%20Task%20Management/docs/phase-5.md)**: Phase 5 Real Dashboard Analytics, Activity Audit Trail, and System Hardening.
 - **[docs/architecture.md](file:///d:/Project%20and%20Task%20Management/docs/architecture.md)**: Complete system design, data flow diagrams, and layer responsibilities.
-- **[docs/PROJECT_WALKTHROUGH.md](file:///d:/Project%20and%20Task%20Management/docs/PROJECT_WALKTHROUGH.md)**: Comprehensive interview preparation guide, 30 Phase 2 Q&As, 25 Phase 3 Q&As, updated 2-minute elevator pitch, and step-by-step interview demo script.
+- **[docs/PROJECT_WALKTHROUGH.md](file:///d:/Project%20and%20Task%20Management/docs/PROJECT_WALKTHROUGH.md)**: Comprehensive interview preparation guide, 75+ full-stack Q&As, 30s/2min/5min pitches, step-by-step interview demo script, and troubleshooting guide.

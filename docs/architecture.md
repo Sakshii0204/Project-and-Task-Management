@@ -400,6 +400,25 @@ erDiagram
         Array dependencies FK "ref: Task"
         Date completedAt
     }
+
+    Activity {
+        ObjectId _id PK
+        ObjectId actor FK "ref: User"
+        string action "16 Business Events"
+        string entityType "USER | PROJECT | TASK"
+        ObjectId entityId
+        ObjectId project FK "ref: Project"
+        string description
+        Object metadata
+        Date createdAt
+    }
+
+    User ||--o{ Project : "manages/member"
+    User ||--o{ Task : "assigned"
+    Project ||--o{ Task : "contains"
+    Project ||--o{ Activity : "scopes"
+    Task ||--o{ Task : "dependsOn"
+    User ||--o{ Activity : "initiates"
 ```
 
 ### Relational Schema & Reference Strategy
@@ -408,16 +427,54 @@ erDiagram
    - `Task.assignee`: Refers to `User` ObjectId. The backend strictly enforces that the assignee is an active user and a declared member of the referenced project.
    - `Task.createdBy`: Immutably populated from session `req.user._id`.
    - `Task.dependencies`: Array of `Task` ObjectIds belonging to the same project.
+   - `Activity.actor`: Refers to `User` ObjectId.
+   - `Activity.project`: Refers to `Project` ObjectId for role-scoped visibility.
 2. **Populate Strategy**:
    - Project: populated with safe fields `_id name code status`.
    - Assignee: populated with `_id name email role avatar`. Password hash is never populated.
    - Dependencies: populated with `_id title status progress`.
+   - Actor: populated with `_id name email role avatar department`.
 3. **Directed Dependency Graph & Cycle Detection**:
    - An edge $A \to B$ indicates Task A depends on Task B.
    - Before saving an edge $A \to B$, an iterative Depth-First Search (DFS) verifies whether $B$ can already reach $A$ through existing prerequisite edges. If so, the operation is rejected with `400 Bad Request`.
 4. **Dynamic Derived Fields**:
    - `isBlocked`: `true` if any prerequisite task has `status !== 'COMPLETED'`.
    - `isOverdue`: `true` if `now > dueDate` and `status !== 'COMPLETED'`.
+
+---
+
+## Phase 5: Dashboard Analytics & Audit Aggregation Flow
+
+```
+                                  Client Request: GET /api/dashboard
+                                                │
+                                                ▼
+                                    Dashboard Controller
+                                                │
+                                                ▼
+                                     Dashboard Service
+                                                │
+                 ┌──────────────────────────────┼──────────────────────────────┐
+                 ▼                              ▼                              ▼
+            Admin Scope                      PM Scope                     Member Scope
+                 │                              │                              │
+       Global CountDocuments          Managed Project IDs            Assigned Task Match
+                 │                              │                              │
+       Status Distributions           PM Project Filter              Member Project Filter
+                 │                              │                              │
+       Upcoming Deadlines             Scoped Deadlines               Personal Deadlines
+       (next 7 days, !COMPLETED)      (next 7 days, !COMPLETED)      (next 7 days, !COMPLETED)
+                 │                              │                              │
+       System Activity Log            Scoped Activity Log            Personal Activity Log
+                 │                              │                              │
+       Overall Project Progress       Managed Project Progress       Assigned Project Progress
+                 └──────────────────────────────┼──────────────────────────────┘
+                                                │
+                                                ▼
+                                Normalized JSON Response:
+                           { success: true, data: { role, metrics, ... } }
+```
+
 
 
 
