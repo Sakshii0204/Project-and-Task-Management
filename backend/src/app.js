@@ -15,24 +15,44 @@ import { errorHandler } from './middleware/error.middleware.js';
 
 export const app = express();
 
-// Security HTTP headers
-app.use(helmet());
+// Request logging for request tracking
+app.use((req, _res, next) => {
+  console.log(`[REQ] ${req.method} ${req.originalUrl || req.url} - Origin: ${req.headers.origin || 'none'}`);
+  next();
+});
+
+// Security HTTP headers with cross-origin resource policy enabled for frontend API clients
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // CORS configuration supporting credentials from frontend origin
 const allowedOrigins = [
   env.CLIENT_URL,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'http://[::1]:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
 ];
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) return true;
+  return false;
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, Postman) or matched origin
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(new Error(`Origin ${origin} not permitted by CORS policy`));
+        console.warn(`[CORS REJECTED] Origin: ${origin}`);
+        callback(null, false);
       }
     },
     credentials: true,
