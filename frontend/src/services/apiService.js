@@ -35,8 +35,13 @@ async function request(endpoint, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    const errorDetails = data?.errors?.map((e) => e.message).filter(Boolean).join('; ');
     const errorMsg =
-      data?.message || data?.errors?.[0]?.message || `Request failed with status ${response.status}`;
+      errorDetails
+        ? (data?.message && data.message !== 'Validation failed' && data.message !== 'Validation Error'
+            ? `${data.message}: ${errorDetails}`
+            : errorDetails)
+        : data?.message || `Request failed with status ${response.status}`;
     const err = new Error(errorMsg);
     err.status = response.status;
     err.data = data;
@@ -483,8 +488,17 @@ export const apiService = {
       progress: Number(taskData.progress) || 0,
       dependencies: Array.isArray(taskData.dependencies) ? taskData.dependencies : [],
     };
-    if (taskData.startDate) payload.startDate = taskData.startDate;
-    if (taskData.dueDate) payload.dueDate = taskData.dueDate;
+    if (taskData.startDate) {
+      payload.startDate = taskData.startDate;
+    }
+    if (taskData.dueDate) {
+      payload.dueDate = taskData.dueDate;
+      if (!taskData.startDate) {
+        const due = new Date(taskData.dueDate);
+        const today = new Date();
+        payload.startDate = today <= due ? today.toISOString().slice(0, 10) : taskData.dueDate;
+      }
+    }
 
     const response = await request('/tasks', {
       method: 'POST',

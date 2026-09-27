@@ -1,9 +1,30 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { validateTaskForm } from '../../utils/validators';
+
+function getProjectEligibleUserIds(project) {
+  if (!project) return new Set();
+  const ids = new Set();
+  const managerId =
+    project.managerId ||
+    (typeof project.manager === 'object'
+      ? project.manager?._id || project.manager?.id
+      : project.manager);
+  if (managerId) ids.add(managerId.toString());
+  if (Array.isArray(project.teamMemberIds)) {
+    project.teamMemberIds.forEach((id) => id && ids.add(id.toString()));
+  }
+  if (Array.isArray(project.members)) {
+    project.members.forEach((m) => {
+      const mId = typeof m === 'object' ? m?.id || m?._id : m;
+      if (mId) ids.add(mId.toString());
+    });
+  }
+  return ids;
+}
 
 export function TaskModal({
   isOpen,
@@ -40,23 +61,47 @@ function TaskModalContent({
 }) {
   const isEdit = Boolean(task);
 
-  const getInitialFormData = () => ({
-    title: task?.title || '',
-    description: task?.description || '',
-    projectId: task?.projectId || defaultProjectId || (projects[0]?.id ?? ''),
-    assigneeId: task?.assigneeId || (users[0]?.id ?? ''),
-    priority: task?.priority || 'Medium',
-    status: task?.status || 'To Do',
-    progress: task?.progress !== undefined ? task.progress : 0,
-    startDate: task?.startDate || '',
-    dueDate: task?.dueDate || '',
-    dependencies: task?.dependencies || [],
-  });
+  const getInitialFormData = () => {
+    const initialProjectId = task?.projectId || defaultProjectId || (projects[0]?.id ?? '');
+    const initialProject = projects.find(
+      (p) => p.id === initialProjectId || p._id === initialProjectId
+    );
+    const eligibleIds = getProjectEligibleUserIds(initialProject);
+
+    let initialAssigneeId = '';
+    if (task?.assigneeId) {
+      initialAssigneeId = task.assigneeId;
+    } else if (eligibleIds.size > 0) {
+      const match = users.find((u) => eligibleIds.has((u.id || u._id)?.toString()));
+      if (match) {
+        initialAssigneeId = match.id || match._id;
+      } else {
+        initialAssigneeId = Array.from(eligibleIds)[0];
+      }
+    } else if (users.length > 0) {
+      initialAssigneeId = users[0].id || users[0]._id;
+    }
+
+    return {
+      title: task?.title || '',
+      description: task?.description || '',
+      projectId: initialProjectId,
+      assigneeId: initialAssigneeId,
+      priority: task?.priority || 'Medium',
+      status: task?.status || 'To Do',
+      progress: task?.progress !== undefined ? task.progress : 0,
+      startDate: task?.startDate || '',
+      dueDate: task?.dueDate || '',
+      dependencies: task?.dependencies || [],
+    };
+  };
 
   const [formData, setFormData] = useState(getInitialFormData);
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+
 
   const resetForm = () => {
     setFormData(getInitialFormData());
@@ -66,12 +111,36 @@ function TaskModalContent({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => {
-      if (name === 'projectId' && value !== prev.projectId) {
-        return { ...prev, [name]: value, dependencies: [] };
-      }
-      return { ...prev, [name]: value };
-    });
+    if (name === 'projectId') {
+      const nextProject = projects.find((p) => p.id === value || p._id === value);
+      const nextEligibleIds = getProjectEligibleUserIds(nextProject);
+
+      setFormData((prev) => {
+        let nextAssigneeId = prev.assigneeId;
+        if (nextEligibleIds.size > 0 && !nextEligibleIds.has(nextAssigneeId?.toString())) {
+          const match = users.find((u) => nextEligibleIds.has((u.id || u._id)?.toString()));
+          nextAssigneeId = match ? (match.id || match._id) : Array.from(nextEligibleIds)[0];
+        } else if (nextEligibleIds.size === 0) {
+          nextAssigneeId = '';
+        }
+        return {
+          ...prev,
+          projectId: value,
+          assigneeId: nextAssigneeId,
+          dependencies: [], // clear dependencies because dependencies belong to specific project
+        };
+      });
+      setErrors((prev) => ({
+        ...prev,
+        projectId: undefined,
+        assigneeId: undefined,
+        dependencies: undefined,
+      }));
+      if (apiError) setApiError(null);
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
@@ -128,20 +197,69 @@ function TaskModalContent({
     label: p.name,
   }));
 
-  const selectedProject = projects.find((p) => p.id === formData.projectId || p._id === formData.projectId);
-  const eligibleUsers = selectedProject?.members?.length
-    ? users.filter((u) => {
-        const uId = u.id || u._id;
-        const memberIds = (selectedProject.members || []).map((m) => (typeof m === 'object' ? (m.id || m._id) : m));
-        const managerId = typeof selectedProject.manager === 'object' ? (selectedProject.manager?.id || selectedProject.manager?._id) : selectedProject.managerId;
-        return memberIds.includes(uId) || uId === managerId;
-      })
-    : users;
+  const selectedProject = useMemo(() => {
+    return projects.find((p) => p.id === formData.projectId || p._id === formData.projectId);
+  }, [projects, formData.projectId]);
 
-  const userOptions = (eligibleUsers.length > 0 ? eligibleUsers : users).map((u) => ({
-    value: u.id || u._id,
-    label: `${u.name} (${u.role})`,
-  }));
+  const eligibleUsers = useMemo(() => {
+    if (!selectedProject) return users;
+    const eligibleIds = getProjectEligibleUserIds(selectedProject);
+    if (eligibleIds.size === 0) return [];
+
+    const list = [];
+    const seen = new Set();
+
+    if (selectedProject.manager && typeof selectedProject.manager === 'object' && selectedProject.manager.name) {
+      const mId = (selectedProject.manager.id || selectedProject.manager._id || selectedProject.managerId)?.toString();
+      if (mId) {
+        seen.add(mId);
+        list.push({
+          id: mId,
+          name: selectedProject.manager.name,
+          role: selectedProject.manager.role || 'Project Manager',
+          email: selectedProject.manager.email,
+        });
+      }
+    }
+
+    if (Array.isArray(selectedProject.members)) {
+      selectedProject.members.forEach((m) => {
+        if (m && typeof m === 'object' && m.name) {
+          const mId = (m.id || m._id)?.toString();
+          if (mId && !seen.has(mId)) {
+            seen.add(mId);
+            list.push(m);
+          }
+        }
+      });
+    }
+
+    users.forEach((u) => {
+      const uId = (u.id || u._id)?.toString();
+      if (uId && eligibleIds.has(uId) && !seen.has(uId)) {
+        seen.add(uId);
+        list.push(u);
+      }
+    });
+
+    return list;
+  }, [selectedProject, users]);
+
+  const userOptions = useMemo(() => {
+    if (!selectedProject) {
+      return users.map((u) => ({
+        value: u.id || u._id,
+        label: `${u.name} (${u.role})`,
+      }));
+    }
+    if (eligibleUsers.length === 0) {
+      return [{ value: '', label: 'No assigned members in this project' }];
+    }
+    return eligibleUsers.map((u) => ({
+      value: u.id || u._id,
+      label: `${u.name} (${u.role || 'Member'})`,
+    }));
+  }, [selectedProject, eligibleUsers, users]);
 
   const priorityOptions = [
     { value: 'Low', label: 'Low' },
@@ -227,8 +345,10 @@ function TaskModalContent({
             value={formData.assigneeId}
             onChange={handleChange}
             options={userOptions}
+            placeholder={eligibleUsers.length > 0 ? 'Select an assignee' : 'No eligible assignee'}
             required
             error={errors.assigneeId}
+            disabled={eligibleUsers.length === 0 && Boolean(selectedProject)}
           />
         </div>
 
