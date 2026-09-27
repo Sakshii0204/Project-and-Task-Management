@@ -245,9 +245,22 @@ export function ProjectProvider({ children }) {
 
   // Activity Audit Log
   const logActivity = async (activityData) => {
-    const logged = await apiService.logActivity(activityData);
-    setActivities((prev) => [logged, ...prev.slice(0, 49)]);
-    return logged;
+    try {
+      if (typeof apiService.logActivity === 'function') {
+        const logged = await apiService.logActivity(activityData);
+        setActivities((prev) => [logged, ...prev.slice(0, 49)]);
+        return logged;
+      }
+    } catch {
+      // Fallback below
+    }
+    const fallbackActivity = {
+      id: `act-${Date.now()}`,
+      ...activityData,
+      timestamp: new Date().toISOString(),
+    };
+    setActivities((prev) => [fallbackActivity, ...prev.slice(0, 49)]);
+    return fallbackActivity;
   };
 
   const resetAllData = () => {

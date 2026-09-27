@@ -65,7 +65,7 @@ function ProjectModalContent({
     };
   }, [initialUsers]);
 
-  const [formData, setFormData] = useState(() => ({
+  const getInitialFormData = () => ({
     name: project?.name || '',
     description: project?.description || '',
     managerId: project?.managerId || '',
@@ -75,16 +75,27 @@ function ProjectModalContent({
     category: project?.category || 'Engineering',
     budget: project?.budget || '$50,000',
     teamMemberIds: project?.teamMemberIds || [],
-  }));
+  });
 
+  const [formData, setFormData] = useState(getInitialFormData);
   const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const resetForm = () => {
+    setFormData(getInitialFormData());
+    setErrors({});
+    setApiError(null);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+    if (apiError) {
+      setApiError(null);
     }
   };
 
@@ -102,6 +113,7 @@ function ProjectModalContent({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setApiError(null);
     const validationErrors = validateProjectForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -117,7 +129,11 @@ function ProjectModalContent({
         ...formData,
         managerName: selectedManager ? selectedManager.name : 'Unknown Manager',
       });
+      resetForm();
       onClose();
+    } catch (err) {
+      console.error('Project save error:', err);
+      setApiError(err.message || 'Failed to save project. Please check inputs and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -175,6 +191,22 @@ function ProjectModalContent({
             }}
           >
             {usersError}
+          </div>
+        )}
+
+        {apiError && (
+          <div
+            style={{
+              padding: '10px 14px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: 'var(--radius-md)',
+              color: '#991b1b',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}
+          >
+            {apiError}
           </div>
         )}
 
@@ -318,7 +350,13 @@ function ProjectModalContent({
             Cancel
           </Button>
           <Button type="submit" loading={submitting}>
-            {isEdit ? 'Save Changes' : 'Create Project'}
+            {submitting
+              ? isEdit
+                ? 'Saving...'
+                : 'Creating...'
+              : isEdit
+              ? 'Save Changes'
+              : 'Create Project'}
           </Button>
         </div>
       </form>
